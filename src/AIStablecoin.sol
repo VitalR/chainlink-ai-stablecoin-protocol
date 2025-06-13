@@ -11,16 +11,24 @@ contract AIStablecoin is ERC20Burnable, ERC20Permit, OwnedThreeStep {
     /// @notice Mapping of addresses recognized as authorizedVaults .
     mapping(address => bool) public authorizedVaults;
 
+    /// @notice Emitted when a vault is added.
     event VaultAdded(address indexed vault);
+
+    /// @notice Emitted when a vault is removed.
     event VaultRemoved(address indexed vault);
 
-    error UnauthorizedAccount(address account);
+    /// @notice Emitted when an invalid address is provided.
     error InvalidAddress(address account);
+
+    /// @notice Emitted when an invalid amount is provided.
     error InvalidAmount(uint256 amount);
+
+    /// @notice Emitted when an unauthorized account is provided.
+    error UnauthorizedAccount();
 
     /// @notice Ensures the function is called by a trusted pool only.
     modifier onlyAuthorizedVaults() {
-        if (!authorizedVaults[msg.sender]) revert UnauthorizedAccount(msg.sender);
+        if (!authorizedVaults[msg.sender]) revert UnauthorizedAccount();
         _;
     }
 
