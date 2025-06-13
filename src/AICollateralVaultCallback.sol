@@ -3,6 +3,7 @@ pragma solidity 0.8.30;
 
 import { IERC20 } from "@openzeppelin/token/ERC20/IERC20.sol";
 import { OwnedThreeStep } from "@solbase/auth/OwnedThreeStep.sol";
+import { AIControllerCallback } from "./AIControllerCallback.sol";
 import { AIStablecoin } from "./AIStablecoin.sol";
 
 /// @title IAIStablecoin Interface
@@ -13,12 +14,28 @@ interface IAIStablecoin {
     function burn(uint256 amount) external;
 }
 
-/// @title AICollateralVault
-/// @notice A vault contract that manages collateral deposits for stablecoin minting
-/// @dev Basic vault functionality with token management and position tracking
-contract AICollateralVault is OwnedThreeStep {
+/// @title IAIControllerCallback Interface
+/// @notice Interface for the AI Controller that processes collateral assessments
+/// @dev Defines the callback mechanism for AI-driven collateral evaluation
+interface IAIControllerCallback {
+    /// @notice Submits a request for AI assessment of collateral
+    /// @param user The address of the user depositing collateral
+    /// @param basketData Encoded data about the collateral basket
+    /// @param collateralValue Total USD value of the collateral
+    /// @return requestId Unique identifier for tracking the AI assessment request
+    function submitAIRequest(address user, bytes calldata basketData, uint256 collateralValue)
+        external
+        payable
+        returns (uint256 requestId);
+}
+
+/// @title AICollateralVaultCallback
+/// @notice A vault contract that manages collateral deposits and AI-driven stablecoin minting
+/// @dev Implements a callback pattern for asynchronous AI assessment of collateral
+contract AICollateralVaultCallback is OwnedThreeStep {
     /// @notice Core contract interfaces
     IAIStablecoin public aiusd;
+    IAIControllerCallback public aiController;
 
     /// @notice Information about supported collateral tokens
     /// @dev Stores price and decimals for each supported token
@@ -36,6 +53,8 @@ contract AICollateralVault is OwnedThreeStep {
         uint256 totalValueUSD; // Total value in USD (18 decimals)
         uint256 aiusdMinted; // Amount of AIUSD minted against position
         uint256 collateralRatio; // Current collateral ratio in basis points
+        uint256 requestId; // ID of the last AI assessment request
+        bool hasPendingRequest; // Whether an AI assessment is in progress
     }
 
     /// @notice Mapping of supported tokens
@@ -52,6 +71,8 @@ contract AICollateralVault is OwnedThreeStep {
 
     /// @notice Events
     event CollateralDeposited(address indexed user, address[] tokens, uint256[] amounts, uint256 totalValue);
+    event AIRequestSubmitted(address indexed user, uint256 indexed requestId, uint256 collateralValue);
+    event AIUSDMinted(address indexed user, uint256 amount, uint256 ratio, uint256 confidence);
     event CollateralWithdrawn(address indexed user, uint256 amount);
     event TokenAdded(address indexed token, uint256 priceUSD, uint8 decimals);
     event TokenPriceUpdated(address indexed token, uint256 newPriceUSD);
@@ -60,14 +81,24 @@ contract AICollateralVault is OwnedThreeStep {
     error TokenNotSupported();
     error InsufficientAIUSD();
     error NoPosition();
+    error PendingAIRequest();
     error TransferFailed();
     error ArrayLengthMismatch();
     error EmptyBasket();
     error ZeroValueBasket();
+    error NoPendingRequest();
+    error RequestIdMismatch();
+    error OnlyAIController();
     error ZeroAmount();
     error InvalidPrice();
     error EmptySymbol();
     error SymbolTooLong();
+
+    /// @notice Restricts function access to AI controller
+    modifier onlyAIController() {
+        if (msg.sender != address(aiController)) revert OnlyAIController();
+        _;
+    }
 
     /// @notice Validates token amounts are non-zero
     /// @param amount Amount to validate
@@ -78,17 +109,20 @@ contract AICollateralVault is OwnedThreeStep {
 
     /// @notice Initializes the vault with core contract addresses
     /// @param _aiusd Address of the AIUSD stablecoin contract
-    constructor(address _aiusd) OwnedThreeStep(msg.sender) {
+    /// @param _aiController Address of the AI controller contract
+    constructor(address _aiusd, address _aiController) OwnedThreeStep(msg.sender) {
         aiusd = IAIStablecoin(_aiusd);
+        aiController = IAIControllerCallback(_aiController);
     }
 
-    /// @notice Deposits a basket of tokens as collateral
-    /// @dev Transfers tokens from user and stores position
+    /// @notice Deposits a basket of tokens as collateral and initiates AI assessment
+    /// @dev Transfers tokens from user, stores position, and triggers AI evaluation
     /// @param tokens Array of token addresses to deposit
     /// @param amounts Array of token amounts to deposit
-    function depositBasket(address[] calldata tokens, uint256[] calldata amounts) external {
+    function depositBasket(address[] calldata tokens, uint256[] calldata amounts) external payable {
         if (tokens.length != amounts.length) revert ArrayLengthMismatch();
         if (tokens.length == 0) revert EmptyBasket();
+        if (positions[msg.sender].hasPendingRequest) revert PendingAIRequest();
 
         uint256 totalValueUSD = 0;
 
@@ -114,10 +148,102 @@ contract AICollateralVault is OwnedThreeStep {
             amounts: amounts,
             totalValueUSD: totalValueUSD,
             aiusdMinted: 0,
-            collateralRatio: 0
+            collateralRatio: 0,
+            requestId: 0,
+            hasPendingRequest: true
         });
 
         emit CollateralDeposited(msg.sender, tokens, amounts, totalValueUSD);
+
+        // Create basket data for AI analysis
+        bytes memory basketData = _encodeBasketData(tokens, amounts, totalValueUSD);
+
+        // Submit AI request with callback (forwards ETH for ORA fee)
+        uint256 requestId = aiController.submitAIRequest{ value: msg.value }(msg.sender, basketData, totalValueUSD);
+
+        // Update position with request ID
+        positions[msg.sender].requestId = requestId;
+
+        emit AIRequestSubmitted(msg.sender, requestId, totalValueUSD);
+    }
+
+    /// @notice Processes the AI assessment callback and mints AIUSD
+    /// @dev Called by AI controller when assessment is complete
+    /// @param user Address of the user who deposited collateral
+    /// @param requestId ID of the completed AI assessment request
+    /// @param mintAmount Amount of AIUSD to mint
+    /// @param ratio Approved collateral ratio in basis points
+    /// @param confidence AI confidence score for the assessment
+    function processAICallback(address user, uint256 requestId, uint256 mintAmount, uint256 ratio, uint256 confidence)
+        external
+        onlyAIController
+    {
+        Position storage position = positions[user];
+        if (!position.hasPendingRequest) revert NoPendingRequest();
+        if (position.requestId != requestId) revert RequestIdMismatch();
+
+        // Update position
+        position.aiusdMinted = mintAmount;
+        position.collateralRatio = ratio;
+        position.hasPendingRequest = false;
+
+        // Mint AIUSD to user
+        aiusd.mint(user, mintAmount);
+
+        emit AIUSDMinted(user, mintAmount, ratio, confidence);
+    }
+
+    /// @notice Encodes basket data for AI analysis
+    /// @dev Creates a formatted string with basket composition
+    /// @param tokens Array of token addresses in the basket
+    /// @param amounts Array of token amounts in the basket
+    /// @param totalValueUSD Total USD value of the basket
+    /// @return Encoded basket data as bytes
+    function _encodeBasketData(address[] calldata tokens, uint256[] calldata amounts, uint256 totalValueUSD)
+        internal
+        view
+        returns (bytes memory)
+    {
+        string memory basketInfo = "Basket: ";
+
+        for (uint256 i = 0; i < tokens.length; i++) {
+            TokenInfo memory tokenInfo = supportedTokens[tokens[i]];
+            uint256 tokenValueUSD = (amounts[i] * tokenInfo.priceUSD) / (10 ** tokenInfo.decimals);
+            // Calculate percentage directly using 100 instead of constant
+            uint256 percentage = (tokenValueUSD * 100) / totalValueUSD;
+
+            basketInfo =
+                string(abi.encodePacked(basketInfo, _getTokenSymbol(tokens[i]), ":", _uint2str(percentage), "% "));
+        }
+
+        // Use 1e18 directly for USD decimals conversion
+        return abi.encodePacked(basketInfo, "Total:$", _uint2str(totalValueUSD / 1e18));
+    }
+
+    /// @notice Converts a uint256 to its string representation
+    /// @dev Uses a bytes array to build the string efficiently
+    /// @param _i The number to convert
+    /// @return The string representation of the number
+    function _uint2str(uint256 _i) internal pure returns (string memory) {
+        if (_i == 0) return "0";
+
+        uint256 j = _i;
+        uint256 len;
+        while (j != 0) {
+            len++;
+            j /= 10;
+        }
+
+        bytes memory bstr = new bytes(len);
+        uint256 k = len;
+        while (_i != 0) {
+            k = k - 1;
+            uint8 temp = (48 + uint8(_i - _i / 10 * 10));
+            bytes1 b1 = bytes1(temp);
+            bstr[k] = b1;
+            _i /= 10;
+        }
+        return string(bstr);
     }
 
     /// @notice Allows users to withdraw collateral by burning AIUSD
@@ -126,6 +252,7 @@ contract AICollateralVault is OwnedThreeStep {
     function withdrawCollateral(uint256 amount) external {
         Position storage position = positions[msg.sender];
         if (position.totalValueUSD == 0) revert NoPosition();
+        if (position.hasPendingRequest) revert PendingAIRequest();
         if (amount > position.aiusdMinted) revert InsufficientAIUSD();
 
         // Calculate collateral to return (proportional)
@@ -184,6 +311,7 @@ contract AICollateralVault is OwnedThreeStep {
     /// @return totalValueUSD Total position value in USD
     /// @return aiusdMinted Amount of AIUSD minted against position
     /// @return collateralRatio Current collateral ratio
+    /// @return hasPendingRequest Whether an AI assessment is pending
     function getPosition(address user)
         external
         view
@@ -192,12 +320,19 @@ contract AICollateralVault is OwnedThreeStep {
             uint256[] memory amounts,
             uint256 totalValueUSD,
             uint256 aiusdMinted,
-            uint256 collateralRatio
+            uint256 collateralRatio,
+            bool hasPendingRequest
         )
     {
         Position memory position = positions[user];
-        return
-            (position.tokens, position.amounts, position.totalValueUSD, position.aiusdMinted, position.collateralRatio);
+        return (
+            position.tokens,
+            position.amounts,
+            position.totalValueUSD,
+            position.aiusdMinted,
+            position.collateralRatio,
+            position.hasPendingRequest
+        );
     }
 
     /// @notice Adds a new token as accepted collateral with symbol
