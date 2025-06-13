@@ -14,6 +14,13 @@ interface IAIStablecoin {
     function burn(uint256 amount) external;
 }
 
+/// @title IERC20Extended Interface
+/// @notice Extended ERC20 interface with symbol function
+/// @dev Used for automatic symbol detection
+interface IERC20Extended {
+    function symbol() external view returns (string memory);
+}
+
 /// @title IAIControllerCallback Interface
 /// @notice Interface for the AI Controller that processes collateral assessments
 /// @dev Defines the callback mechanism for AI-driven collateral evaluation
@@ -76,6 +83,7 @@ contract AICollateralVaultCallback is OwnedThreeStep {
     event CollateralWithdrawn(address indexed user, uint256 amount);
     event TokenAdded(address indexed token, uint256 priceUSD, uint8 decimals);
     event TokenPriceUpdated(address indexed token, uint256 newPriceUSD);
+    event EmergencyRequestCleared(address indexed user, uint256 indexed requestId);
 
     /// @notice Custom errors
     error TokenNotSupported();
@@ -193,59 +201,6 @@ contract AICollateralVaultCallback is OwnedThreeStep {
         emit AIUSDMinted(user, mintAmount, ratio, confidence);
     }
 
-    /// @notice Encodes basket data for AI analysis
-    /// @dev Creates a formatted string with basket composition
-    /// @param tokens Array of token addresses in the basket
-    /// @param amounts Array of token amounts in the basket
-    /// @param totalValueUSD Total USD value of the basket
-    /// @return Encoded basket data as bytes
-    function _encodeBasketData(address[] calldata tokens, uint256[] calldata amounts, uint256 totalValueUSD)
-        internal
-        view
-        returns (bytes memory)
-    {
-        string memory basketInfo = "Basket: ";
-
-        for (uint256 i = 0; i < tokens.length; i++) {
-            TokenInfo memory tokenInfo = supportedTokens[tokens[i]];
-            uint256 tokenValueUSD = (amounts[i] * tokenInfo.priceUSD) / (10 ** tokenInfo.decimals);
-            // Calculate percentage directly using 100 instead of constant
-            uint256 percentage = (tokenValueUSD * 100) / totalValueUSD;
-
-            basketInfo =
-                string(abi.encodePacked(basketInfo, _getTokenSymbol(tokens[i]), ":", _uint2str(percentage), "% "));
-        }
-
-        // Use 1e18 directly for USD decimals conversion
-        return abi.encodePacked(basketInfo, "Total:$", _uint2str(totalValueUSD / 1e18));
-    }
-
-    /// @notice Converts a uint256 to its string representation
-    /// @dev Uses a bytes array to build the string efficiently
-    /// @param _i The number to convert
-    /// @return The string representation of the number
-    function _uint2str(uint256 _i) internal pure returns (string memory) {
-        if (_i == 0) return "0";
-
-        uint256 j = _i;
-        uint256 len;
-        while (j != 0) {
-            len++;
-            j /= 10;
-        }
-
-        bytes memory bstr = new bytes(len);
-        uint256 k = len;
-        while (_i != 0) {
-            k = k - 1;
-            uint8 temp = (48 + uint8(_i - _i / 10 * 10));
-            bytes1 b1 = bytes1(temp);
-            bstr[k] = b1;
-            _i /= 10;
-        }
-        return string(bstr);
-    }
-
     /// @notice Allows users to withdraw collateral by burning AIUSD
     /// @dev Burns AIUSD and returns proportional amount of collateral
     /// @param amount Amount of AIUSD to burn
@@ -278,29 +233,81 @@ contract AICollateralVaultCallback is OwnedThreeStep {
         emit CollateralWithdrawn(msg.sender, amount);
     }
 
-    /// @notice Sets the symbol for a token
-    /// @dev Only callable by owner, used to maintain token symbols
-    /// @param token Address of the token
-    /// @param symbol Symbol string for the token
-    function setTokenSymbol(address token, string calldata symbol) external onlyOwner {
-        if (bytes(symbol).length == 0) revert EmptySymbol();
-        if (bytes(symbol).length > 10) revert SymbolTooLong();
+    /// @notice Encodes basket data for AI analysis
+    /// @dev Creates a formatted string with basket composition
+    /// @param tokens Array of token addresses in the basket
+    /// @param amounts Array of token amounts in the basket
+    /// @param totalValueUSD Total USD value of the basket
+    /// @return Encoded basket data as bytes
+    function _encodeBasketData(address[] calldata tokens, uint256[] calldata amounts, uint256 totalValueUSD)
+        internal
+        view
+        returns (bytes memory)
+    {
+        string memory basketInfo = "Basket: ";
 
-        tokenSymbols[token] = symbol;
-        emit TokenSymbolSet(token, symbol);
+        for (uint256 i = 0; i < tokens.length; i++) {
+            TokenInfo memory tokenInfo = supportedTokens[tokens[i]];
+            uint256 tokenValueUSD = (amounts[i] * tokenInfo.priceUSD) / (10 ** tokenInfo.decimals);
+            // Calculate percentage directly using 100 instead of constant
+            uint256 percentage = (tokenValueUSD * 100) / totalValueUSD;
+
+            basketInfo =
+                string(abi.encodePacked(basketInfo, _getTokenSymbol(tokens[i]), ":", _uint2str(percentage), "% "));
+        }
+
+        // Use 1e18 directly for USD decimals conversion
+        return abi.encodePacked(basketInfo, "Total:$", _uint2str(totalValueUSD / 1e18));
     }
 
     /// @notice Helper function to get a token's symbol
-    /// @dev Returns stored symbol or "UNKNOWN" if not set
+    /// @dev Tries to fetch from token contract first, falls back to stored symbol
     /// @param token Address of the token
     /// @return Symbol string representation of the token
     function _getTokenSymbol(address token) internal view returns (string memory) {
-        string memory symbol = tokenSymbols[token];
-        // If symbol is not set, return UNKNOWN
-        if (bytes(symbol).length == 0) {
-            return "UNKNOWN";
+        // First try to get symbol from stored mapping
+        string memory storedSymbol = tokenSymbols[token];
+        if (bytes(storedSymbol).length > 0) {
+            return storedSymbol;
         }
-        return symbol;
+
+        // Try to fetch from token contract
+        try IERC20Extended(token).symbol() returns (string memory tokenSymbol) {
+            if (bytes(tokenSymbol).length > 0) {
+                return tokenSymbol;
+            }
+        } catch {
+            // If external call fails, continue to fallback
+        }
+
+        // Final fallback
+        return "UNKNOWN";
+    }
+
+    /// @notice Converts a uint256 to its string representation
+    /// @dev Uses a bytes array to build the string efficiently
+    /// @param _i The number to convert
+    /// @return The string representation of the number
+    function _uint2str(uint256 _i) internal pure returns (string memory) {
+        if (_i == 0) return "0";
+
+        uint256 j = _i;
+        uint256 len;
+        while (j != 0) {
+            len++;
+            j /= 10;
+        }
+
+        bytes memory bstr = new bytes(len);
+        uint256 k = len;
+        while (_i != 0) {
+            k = k - 1;
+            uint8 temp = (48 + uint8(_i - _i / 10 * 10));
+            bytes1 b1 = bytes1(temp);
+            bstr[k] = b1;
+            _i /= 10;
+        }
+        return string(bstr);
     }
 
     /// @notice Retrieves the full position information for a user
@@ -335,6 +342,25 @@ contract AICollateralVaultCallback is OwnedThreeStep {
         );
     }
 
+    /// @notice Sets the symbol for a token (override automatic detection)
+    /// @dev Only callable by owner, used to override automatic symbol detection
+    /// @param token Address of the token
+    /// @param symbol Symbol string for the token (empty string to clear override)
+    function setTokenSymbol(address token, string calldata symbol) external onlyOwner {
+        if (bytes(symbol).length > 10) revert SymbolTooLong();
+
+        tokenSymbols[token] = symbol;
+        emit TokenSymbolSet(token, symbol);
+    }
+
+    /// @notice Gets the effective symbol for a token
+    /// @dev Public function to check what symbol will be used
+    /// @param token Address of the token
+    /// @return The symbol that will be used for this token
+    function getTokenSymbol(address token) external view returns (string memory) {
+        return _getTokenSymbol(token);
+    }
+
     /// @notice Adds a new token as accepted collateral with symbol
     /// @dev Only callable by owner
     /// @param token Address of the token to add
@@ -366,6 +392,30 @@ contract AICollateralVaultCallback is OwnedThreeStep {
 
         supportedTokens[token].priceUSD = newPriceUSD;
         emit TokenPriceUpdated(token, newPriceUSD);
+    }
+
+    /// @notice Emergency function to clear a stuck AI request
+    /// @dev Only callable by owner, use with extreme caution
+    /// @param user Address of the user whose request needs clearing
+    function emergencyClearRequest(address user) external onlyOwner {
+        Position storage position = positions[user];
+        uint256 requestId = position.requestId;
+        position.hasPendingRequest = false;
+        emit EmergencyRequestCleared(user, requestId);
+    }
+
+    /// @notice Emergency function to remove token support
+    /// @dev Only callable by owner, for emergency situations
+    /// @param token Address of the token to remove support for
+    function emergencyRemoveToken(address token) external onlyOwner {
+        supportedTokens[token].supported = false;
+    }
+
+    /// @notice Emergency function to pause deposits
+    /// @dev Only callable by owner, prevents new deposits
+    /// @param token Address of the token to pause
+    function emergencyPauseToken(address token) external onlyOwner {
+        supportedTokens[token].supported = false;
     }
 
     /// @notice Calculates the USD value of a token amount
