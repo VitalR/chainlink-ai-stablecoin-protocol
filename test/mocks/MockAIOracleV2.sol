@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-/// @title MockAIOracle - Simulates ORA OAO for Testing
-/// @notice Provides deterministic AI responses for testing the full flow
-/// @dev Implements the same interface as ORA Oracle
-contract MockAIOracle {
-    /// @notice Mock fee for AI requests (matches real AIOracle)
-    uint256 public fee = 0.001 ether;
+/// @title MockAIOracleV2 - Mock Oracle for V2 System Tests
+/// @notice Provides the correct interface matching the real ORA Oracle for V2 tests
+/// @dev Implements the IAIOracle interface with callbackData support
+contract MockAIOracleV2 {
+    /// @notice Mock fee for AI requests
+    uint256 public fee = 0.01 ether;
 
     /// @notice Request ID counter
     uint256 public nextRequestId = 1;
@@ -19,8 +19,8 @@ contract MockAIOracle {
 
     struct CallbackInfo {
         address target;
-        bytes4 functionSelector;
         uint64 gasLimit;
+        bytes callbackData;
     }
 
     struct PendingRequest {
@@ -32,10 +32,18 @@ contract MockAIOracle {
     }
 
     /// @notice Events matching ORA Protocol
-    event RequestCreated(uint256 indexed requestId, uint256 modelId, address callback);
-    event ResponseReady(uint256 indexed requestId, bytes output);
+    event AICallbackRequest(
+        address account,
+        uint256 requestId,
+        uint256 modelId,
+        bytes input,
+        address callbackContract,
+        uint64 gasLimit,
+        bytes callbackData
+    );
+    event AICallbackResult(uint256 requestId, bytes output);
 
-    /// @notice Submit AI inference request (matches ORA interface)
+    /// @notice Submit AI inference request (matches improved IAIOracle interface)
     /// @param modelId The AI model to use
     /// @param input The encoded input data
     /// @param callbackContract Where to send the result
@@ -48,13 +56,12 @@ contract MockAIOracle {
         uint64 gasLimit,
         bytes calldata callbackData
     ) external payable returns (uint256 requestId) {
+        require(msg.value >= fee, "Insufficient fee");
+
         requestId = nextRequestId++;
 
-        callbacks[requestId] = CallbackInfo({
-            target: callbackContract,
-            functionSelector: bytes4(keccak256("aiOracleCallback(uint256,bytes,bytes)")),
-            gasLimit: gasLimit
-        });
+        callbacks[requestId] =
+            CallbackInfo({ target: callbackContract, gasLimit: gasLimit, callbackData: callbackData });
 
         pendingRequests[requestId] = PendingRequest({
             modelId: modelId,
@@ -64,7 +71,8 @@ contract MockAIOracle {
             finalized: false
         });
 
-        emit RequestCreated(requestId, modelId, callbackContract);
+        emit AICallbackRequest(msg.sender, requestId, modelId, input, callbackContract, gasLimit, callbackData);
+
         return requestId;
     }
 
@@ -83,13 +91,13 @@ contract MockAIOracle {
 
         CallbackInfo memory cbInfo = callbacks[requestId];
 
-        // Call back to the requester using aiOracleCallback
+        // Call back to the requester using aiOracleCallback with the correct signature
         (bool success,) = cbInfo.target.call{ gas: cbInfo.gasLimit }(
-            abi.encodeWithSelector(cbInfo.functionSelector, request.modelId, request.input, result)
+            abi.encodeWithSignature("aiOracleCallback(uint256,bytes,bytes)", requestId, result, cbInfo.callbackData)
         );
         require(success, "Callback failed");
 
-        emit ResponseReady(requestId, result);
+        emit AICallbackResult(requestId, result);
     }
 
     /// @notice Generate deterministic AI response based on input
@@ -129,9 +137,9 @@ contract MockAIOracle {
     /// @param modelId Model ID
     /// @param gasLimit Gas limit for callback
     /// @return Estimated fee in wei
-    function estimateFee(uint256 modelId, uint64 gasLimit) external pure returns (uint256) {
+    function estimateFee(uint256 modelId, uint64 gasLimit) external view returns (uint256) {
         // Mock fee calculation
-        return 0.001 ether + (gasLimit * 1 gwei);
+        return fee + (gasLimit * 1 gwei);
     }
 
     /// @notice Check if request is finalized (matches ORA interface)
@@ -139,6 +147,14 @@ contract MockAIOracle {
     /// @return Whether the request is finalized
     function isFinalized(uint256 requestId) external view returns (bool) {
         return pendingRequests[requestId].finalized;
+    }
+
+    /// @notice Get the result of an AI request
+    /// @param requestId The request ID to get result for
+    /// @return The AI result as bytes
+    function getResult(uint256 requestId) external view returns (bytes memory) {
+        require(pendingRequests[requestId].finalized, "Request not finalized");
+        return _generateMockResponse(pendingRequests[requestId].modelId, pendingRequests[requestId].input);
     }
 
     /// @notice Helper function to convert uint to string
@@ -172,5 +188,19 @@ contract MockAIOracle {
     {
         PendingRequest memory req = pendingRequests[requestId];
         return (req.modelId, callbacks[requestId].target, req.timestamp, req.processed);
+    }
+
+    /// @notice Set the fee for testing
+    function setFee(uint256 newFee) external {
+        fee = newFee;
+    }
+
+    /// @notice Batch process multiple requests (for testing efficiency)
+    function batchProcessRequests(uint256[] calldata requestIds) external {
+        for (uint256 i = 0; i < requestIds.length; i++) {
+            if (!pendingRequests[requestIds[i]].processed) {
+                this.processRequest(requestIds[i]);
+            }
+        }
     }
 }
