@@ -6,10 +6,10 @@ import "./interfaces/IAIStablecoin.sol";
 import "./interfaces/AIOracleCallbackReceiver.sol";
 import "lib/solbase/src/auth/OwnedThreeStep.sol";
 
-/// @title AIControllerV2 - Enhanced AI Controller with Manual Processing
+/// @title AIController - Enhanced AI Controller with Manual Processing
 /// @notice Handles AI requests with improved error handling and manual processing capabilities
 /// @dev Integrates with ORA Oracle and provides multiple recovery mechanisms
-contract AIControllerV2 is OwnedThreeStep, AIOracleCallbackReceiver {
+contract AIController is OwnedThreeStep, AIOracleCallbackReceiver {
     /// @notice Custom errors
     error UnauthorizedCaller();
     error ZeroAddressCaller();

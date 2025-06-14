@@ -4,22 +4,23 @@ pragma solidity 0.8.30;
 import "./interfaces/IAIStablecoin.sol";
 import "lib/solbase/src/auth/OwnedThreeStep.sol";
 import "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/utils/ReentrancyGuard.sol";
 
-/// @title IAIControllerV2 Interface
-interface IAIControllerV2 {
+/// @title IAIController Interface
+interface IAIController {
     function submitAIRequest(address user, bytes calldata basketData, uint256 collateralValue)
         external
         payable
         returns (uint256 requestId);
 }
 
-/// @title AICollateralVaultV2 - Enhanced Collateral Management
-/// @notice Manages collateral deposits and integrates with AI controller for optimal minting
-/// @dev Supports multiple recovery mechanisms and manual processing
-contract AICollateralVaultV2 is OwnedThreeStep {
+/// @title CollateralVault - Enhanced Collateral Management with Manual Processing
+/// @notice Manages collateral deposits and AI-driven minting with improved error handling
+/// @dev Integrates with AIController for AI processing and manual recovery mechanisms
+contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
     /// @notice Core contract interfaces
     IAIStablecoin public aiusd;
-    IAIControllerV2 public aiController;
+    IAIController public aiController;
 
     /// @notice Token information
     struct TokenInfo {
@@ -84,7 +85,7 @@ contract AICollateralVaultV2 is OwnedThreeStep {
     /// @notice Initialize the vault
     constructor(address _aiusd, address _aiController) OwnedThreeStep(msg.sender) {
         aiusd = IAIStablecoin(_aiusd);
-        aiController = IAIControllerV2(_aiController);
+        aiController = IAIController(_aiController);
     }
 
     /// @notice Receive function to accept ETH refunds

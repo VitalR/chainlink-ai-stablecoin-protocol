@@ -4,19 +4,19 @@ pragma solidity 0.8.30;
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
 
+import "../src/AIController.sol";
+import "../src/CollateralVault.sol";
 import "../src/AIStablecoin.sol";
-import "../src/AICollateralVaultV2.sol";
-import "../src/AIControllerV2.sol";
 import "./mocks/MockAIOracleV2.sol";
 import "./mocks/MockERC20.sol";
 
-/// @title AIControllerV2 Tests
-/// @notice Comprehensive tests for the V2 system with manual processing
-contract AIControllerV2Test is Test {
+/// @title AIControllerTest - Comprehensive tests for AIController
+/// @notice Tests all functionality including manual processing and error handling
+contract AIControllerTest is Test {
     // Core contracts
     AIStablecoin public aiusd;
-    AICollateralVaultV2 public vault;
-    AIControllerV2 public controller;
+    CollateralVault public vault;
+    AIController public controller;
     MockAIOracleV2 public mockOracle;
 
     // Mock tokens
@@ -47,7 +47,7 @@ contract AIControllerV2Test is Test {
     event ManualProcessingCompleted(
         uint256 indexed internalRequestId,
         address indexed processor,
-        AIControllerV2.ManualStrategy strategy,
+        AIController.ManualStrategy strategy,
         uint256 ratio,
         uint256 mintAmount
     );
@@ -76,13 +76,13 @@ contract AIControllerV2Test is Test {
         // Deploy core contracts
         aiusd = new AIStablecoin();
 
-        controller = new AIControllerV2(
+        controller = new AIController(
             address(mockOracle), // oracle
             11, // model ID
             ORACLE_FEE // oracle fee
         );
 
-        vault = new AICollateralVaultV2(address(aiusd), address(controller));
+        vault = new CollateralVault(address(aiusd), address(controller));
 
         // Setup permissions
         aiusd.addVault(address(vault));
@@ -169,7 +169,7 @@ contract AIControllerV2Test is Test {
         (,,,,, uint256 requestId,) = vault.getPosition(user1);
 
         // 2. Try to request manual processing too early (should fail)
-        vm.expectRevert(AIControllerV2.RequestNotExpired.selector);
+        vm.expectRevert(AIController.RequestNotExpired.selector);
         controller.requestManualProcessing(requestId);
 
         // 3. Fast forward time to allow manual processing
@@ -182,7 +182,7 @@ contract AIControllerV2Test is Test {
         controller.requestManualProcessing(requestId);
 
         // 5. Verify request was marked for manual processing
-        AIControllerV2.RequestInfo memory request = controller.getRequestInfo(requestId);
+        AIController.RequestInfo memory request = controller.getRequestInfo(requestId);
         assertTrue(request.manualProcessingRequested, "Should be marked for manual processing");
         assertEq(request.manualRequestTime, block.timestamp, "Manual request time should be set");
 
@@ -212,17 +212,17 @@ contract AIControllerV2Test is Test {
         emit ManualProcessingCompleted(
             requestId,
             manualProcessor,
-            AIControllerV2.ManualStrategy.PROCESS_WITH_OFFCHAIN_AI,
+            AIController.ManualStrategy.PROCESS_WITH_OFFCHAIN_AI,
             15_000,
             13_333_333_333_333_333_333_333 // Expected mint amount: (20000 * 1e18 * 10000) / 15000 = 13.333... * 1e21
         );
 
-        controller.processWithOffChainAI(requestId, aiResponse, AIControllerV2.ManualStrategy.PROCESS_WITH_OFFCHAIN_AI);
+        controller.processWithOffChainAI(requestId, aiResponse, AIController.ManualStrategy.PROCESS_WITH_OFFCHAIN_AI);
 
         vm.stopPrank();
 
         // Verify processing completed
-        AIControllerV2.RequestInfo memory request = controller.getRequestInfo(requestId);
+        AIController.RequestInfo memory request = controller.getRequestInfo(requestId);
         assertTrue(request.processed, "Request should be processed");
 
         // Verify user received AIUSD
@@ -257,7 +257,7 @@ contract AIControllerV2Test is Test {
         emit ManualProcessingCompleted(
             requestId,
             manualProcessor,
-            AIControllerV2.ManualStrategy.FORCE_DEFAULT_MINT,
+            AIController.ManualStrategy.FORCE_DEFAULT_MINT,
             expectedRatio,
             expectedMintAmount
         );
@@ -265,7 +265,7 @@ contract AIControllerV2Test is Test {
         controller.processWithOffChainAI(
             requestId,
             "", // Empty response for force mint
-            AIControllerV2.ManualStrategy.FORCE_DEFAULT_MINT
+            AIController.ManualStrategy.FORCE_DEFAULT_MINT
         );
 
         vm.stopPrank();
@@ -304,17 +304,17 @@ contract AIControllerV2Test is Test {
         emit ManualProcessingCompleted(
             requestId,
             manualProcessor,
-            AIControllerV2.ManualStrategy.EMERGENCY_WITHDRAWAL,
+            AIController.ManualStrategy.EMERGENCY_WITHDRAWAL,
             0, // No ratio for withdrawal
             0 // No mint amount
         );
 
-        controller.processWithOffChainAI(requestId, "", AIControllerV2.ManualStrategy.EMERGENCY_WITHDRAWAL);
+        controller.processWithOffChainAI(requestId, "", AIController.ManualStrategy.EMERGENCY_WITHDRAWAL);
 
         vm.stopPrank();
 
         // Verify withdrawal completed
-        AIControllerV2.RequestInfo memory request = controller.getRequestInfo(requestId);
+        AIController.RequestInfo memory request = controller.getRequestInfo(requestId);
         assertTrue(request.processed, "Request should be processed");
 
         // Verify user got collateral back
@@ -348,7 +348,7 @@ contract AIControllerV2Test is Test {
         vm.stopPrank();
 
         // Verify withdrawal completed
-        AIControllerV2.RequestInfo memory request = controller.getRequestInfo(requestId);
+        AIController.RequestInfo memory request = controller.getRequestInfo(requestId);
         assertTrue(request.processed, "Request should be processed");
 
         // Verify user got collateral back
@@ -409,7 +409,7 @@ contract AIControllerV2Test is Test {
             uint256[] memory requestIds,
             address[] memory users,
             uint256[] memory timestamps,
-            AIControllerV2.ManualStrategy[][] memory strategies
+            AIController.ManualStrategy[][] memory strategies
         ) = controller.getManualProcessingCandidates(0, 10);
 
         assertEq(requestIds.length, 2, "Should have 2 candidates");
@@ -425,7 +425,7 @@ contract AIControllerV2Test is Test {
         uint256 requestId = _setupStuckRequest();
 
         // Check options before time passes
-        (bool canProcess, AIControllerV2.ManualStrategy[] memory strategies, uint256 timeRemaining) =
+        (bool canProcess, AIController.ManualStrategy[] memory strategies, uint256 timeRemaining) =
             controller.getManualProcessingOptions(requestId);
 
         assertFalse(canProcess, "Should not be able to process yet");
@@ -460,9 +460,9 @@ contract AIControllerV2Test is Test {
         // Try unauthorized manual processing
         vm.startPrank(unauthorizedUser);
 
-        vm.expectRevert(AIControllerV2.UnauthorizedManualProcessor.selector);
+        vm.expectRevert(AIController.UnauthorizedManualProcessor.selector);
         controller.processWithOffChainAI(
-            requestId, "RATIO:150 CONFIDENCE:85", AIControllerV2.ManualStrategy.PROCESS_WITH_OFFCHAIN_AI
+            requestId, "RATIO:150 CONFIDENCE:85", AIController.ManualStrategy.PROCESS_WITH_OFFCHAIN_AI
         );
 
         vm.stopPrank();
@@ -470,7 +470,7 @@ contract AIControllerV2Test is Test {
         // Try unauthorized manual processing request
         vm.startPrank(unauthorizedUser);
 
-        vm.expectRevert(AIControllerV2.UnauthorizedCaller.selector);
+        vm.expectRevert(AIController.UnauthorizedCaller.selector);
         controller.requestManualProcessing(requestId);
 
         vm.stopPrank();
@@ -534,14 +534,12 @@ contract AIControllerV2Test is Test {
         responses[3] = "No clear ratio found"; // No parseable data (should use defaults)
 
         // Test first response
-        controller.processWithOffChainAI(
-            requestId, responses[0], AIControllerV2.ManualStrategy.PROCESS_WITH_OFFCHAIN_AI
-        );
+        controller.processWithOffChainAI(requestId, responses[0], AIController.ManualStrategy.PROCESS_WITH_OFFCHAIN_AI);
 
         vm.stopPrank();
 
         // Verify it was processed
-        AIControllerV2.RequestInfo memory request = controller.getRequestInfo(requestId);
+        AIController.RequestInfo memory request = controller.getRequestInfo(requestId);
         assertTrue(request.processed, "Request should be processed");
 
         console.log("AI response parsing works correctly");

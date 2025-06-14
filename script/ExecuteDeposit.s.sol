@@ -3,8 +3,8 @@ pragma solidity 0.8.30;
 
 import "forge-std/Script.sol";
 import { AIStablecoin } from "src/AIStablecoin.sol";
-import { AICollateralVaultCallback } from "src/AICollateralVaultCallback.sol";
-import { AIControllerCallback } from "src/AIControllerCallback.sol";
+import { CollateralVault } from "src/CollateralVault.sol";
+import { AIController } from "src/AIController.sol";
 import { IERC20 } from "@openzeppelin/token/ERC20/IERC20.sol";
 import { SepoliaConfig } from "config/SepoliaConfig.sol";
 
@@ -12,8 +12,8 @@ import { SepoliaConfig } from "config/SepoliaConfig.sol";
 /// @notice Executes various deposit scenarios to test the system functionality
 contract ExecuteDepositScript is Script {
     AIStablecoin aiusd;
-    AICollateralVaultCallback vault;
-    AIControllerCallback controller;
+    CollateralVault vault;
+    AIController controller;
 
     IERC20 dai;
     IERC20 weth;
@@ -29,8 +29,8 @@ contract ExecuteDepositScript is Script {
 
         // Initialize contracts
         aiusd = AIStablecoin(SepoliaConfig.AI_STABLECOIN);
-        vault = AICollateralVaultCallback(payable(SepoliaConfig.AI_VAULT));
-        controller = AIControllerCallback(SepoliaConfig.AI_CONTROLLER);
+        vault = CollateralVault(payable(SepoliaConfig.AI_VAULT));
+        controller = AIController(SepoliaConfig.AI_CONTROLLER);
 
         // Initialize tokens
         dai = IERC20(SepoliaConfig.MOCK_DAI);
@@ -211,7 +211,7 @@ contract ExecuteDepositScript is Script {
 
     /// @notice Run all deposit scenarios
     function run() public {
-        console.log(" AI Stablecoin Deposit Execution Tests");
+        console.log("AI Stablecoin Deposit Execution Tests");
         console.log("=========================================");
 
         // Check initial status
@@ -231,6 +231,6 @@ contract ExecuteDepositScript is Script {
             revert("Invalid scenario");
         }
 
-        console.log("\n Deposit execution completed");
+        console.log("\nDeposit execution completed");
     }
 }

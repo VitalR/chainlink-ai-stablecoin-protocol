@@ -2,11 +2,11 @@
 pragma solidity 0.8.30;
 
 import "forge-std/Script.sol";
-import { AICollateralVaultCallback } from "src/AICollateralVaultCallback.sol";
+import { CollateralVault } from "src/CollateralVault.sol";
 import { SepoliaConfig } from "config/SepoliaConfig.sol";
 
 contract DeployVaultScript is Script {
-    AICollateralVaultCallback vault;
+    CollateralVault vault;
     address deployerPublicKey;
     uint256 deployerPrivateKey;
 
@@ -25,9 +25,9 @@ contract DeployVaultScript is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        vault = new AICollateralVaultCallback(stablecoinAddr, controllerAddr);
+        vault = new CollateralVault(stablecoinAddr, controllerAddr);
 
-        console.log("==AICollateralVaultCallback addr=%s", address(vault));
+        console.log("==AICollateralVault deployed at=%s", address(vault));
         console.log("==Stablecoin addr=%s", stablecoinAddr);
         console.log("==Controller addr=%s", controllerAddr);
 
@@ -35,6 +35,7 @@ contract DeployVaultScript is Script {
     }
 }
 
-// source .env && forge script script/03_DeployVault.s.sol:DeployVaultScript --rpc-url $SEPOLIA_RPC_URL
-// --broadcast --private-key $DEPLOYER_PRIVATE_KEY --etherscan-api-key $ETHERSCAN_API_KEY --gas-limit $GAS_LIMIT
-// --gas-price $GAS_PRICE --verify -vvvv
+// Usage:
+// source .env && forge script script/03_DeployVault.s.sol:DeployVaultScript --rpc-url $SEPOLIA_RPC_URL --broadcast
+// --private-key $DEPLOYER_PRIVATE_KEY --etherscan-api-key $ETHERSCAN_API_KEY --gas-limit $GAS_LIMIT --gas-price
+// $GAS_PRICE --verify -vvvv

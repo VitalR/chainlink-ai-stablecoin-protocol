@@ -5,8 +5,8 @@ import "forge-std/Test.sol";
 import "forge-std/console.sol";
 
 import "../src/AIStablecoin.sol";
-import "../src/AICollateralVaultCallback.sol";
-import "../src/AIControllerCallback.sol";
+import "../src/CollateralVault.sol";
+import "../src/AIController.sol";
 import "./mocks/MockAIOracle.sol";
 import "./mocks/MockERC20.sol";
 
@@ -15,8 +15,8 @@ import "./mocks/MockERC20.sol";
 contract AIStablecoinE2E is Test {
     // Core contracts
     AIStablecoin public aiusd;
-    AICollateralVaultCallback public vault;
-    AIControllerCallback public controller;
+    CollateralVault public vault;
+    AIController public controller;
     MockAIOracle public mockOracle;
 
     // Mock tokens
@@ -47,23 +47,22 @@ contract AIStablecoinE2E is Test {
         // Deploy core contracts
         aiusd = new AIStablecoin();
 
-        controller = new AIControllerCallback(
+        controller = new AIController(
             address(mockOracle), // oracle
             11, // model ID
-            500_000, // gas limit
             0.01 ether // oracle fee
         );
 
-        vault = new AICollateralVaultCallback(address(aiusd), address(controller));
+        vault = new CollateralVault(address(aiusd), address(controller));
 
         // Setup permissions
         aiusd.addVault(address(vault));
         controller.setAuthorizedCaller(address(vault), true);
 
-        // Setup token prices (mock oracle prices)
-        vault.addSupportedToken(address(weth), 2000 * 1e18, 18, "WETH"); // $2000 per ETH
-        vault.addSupportedToken(address(wbtc), 50_000 * 1e18, 8, "WBTC"); // $50000 per BTC
-        vault.addSupportedToken(address(usdc), 1 * 1e18, 6, "USDC"); // $1 per USDC
+        // Setup token prices
+        vault.addToken(address(weth), 2000 * 1e18, 18, "WETH"); // $2000 per ETH
+        vault.addToken(address(wbtc), 50_000 * 1e18, 8, "WBTC"); // $50000 per BTC
+        vault.addToken(address(usdc), 1 * 1e18, 6, "USDC"); // $1 per USDC
 
         // Mint tokens to users
         weth.mint(user1, INITIAL_BALANCE);
@@ -138,7 +137,7 @@ contract AIStablecoinE2E is Test {
         assertTrue(hasPendingRequestCheck, "Should have pending AI request");
 
         // 5. Verify AI request was submitted
-        assertTrue(controller.isRequestProcessed(requestId) == false, "Request should not be processed yet");
+        assertTrue(controller.getRequestInfo(requestId).processed == false, "Request should not be processed yet");
 
         vm.stopPrank();
 

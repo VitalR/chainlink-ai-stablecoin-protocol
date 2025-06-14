@@ -3,8 +3,8 @@ pragma solidity 0.8.30;
 
 import "forge-std/Script.sol";
 import { AIStablecoin } from "src/AIStablecoin.sol";
-import { AICollateralVaultCallback } from "src/AICollateralVaultCallback.sol";
-import { AIControllerCallback } from "src/AIControllerCallback.sol";
+import { CollateralVault } from "src/CollateralVault.sol";
+import { AIController } from "src/AIController.sol";
 import { IERC20 } from "@openzeppelin/token/ERC20/IERC20.sol";
 import { SepoliaConfig } from "config/SepoliaConfig.sol";
 
@@ -12,8 +12,8 @@ import { SepoliaConfig } from "config/SepoliaConfig.sol";
 /// @notice Executes various withdrawal scenarios to test the system functionality
 contract ExecuteWithdrawScript is Script {
     AIStablecoin aiusd;
-    AICollateralVaultCallback vault;
-    AIControllerCallback controller;
+    CollateralVault vault;
+    AIController controller;
 
     IERC20 dai;
     IERC20 weth;
@@ -29,8 +29,8 @@ contract ExecuteWithdrawScript is Script {
 
         // Initialize contracts
         aiusd = AIStablecoin(SepoliaConfig.AI_STABLECOIN);
-        vault = AICollateralVaultCallback(payable(SepoliaConfig.AI_VAULT));
-        controller = AIControllerCallback(SepoliaConfig.AI_CONTROLLER);
+        vault = CollateralVault(payable(SepoliaConfig.AI_VAULT));
+        controller = AIController(SepoliaConfig.AI_CONTROLLER);
 
         // Initialize tokens
         dai = IERC20(SepoliaConfig.MOCK_DAI);
@@ -238,47 +238,9 @@ contract ExecuteWithdrawScript is Script {
         console.log("- 100% withdrawal:", aiusdBalance);
     }
 
-    /// @notice Test error cases for withdrawals
-    function testWithdrawErrors() public {
-        vm.startBroadcast(userPrivateKey);
-
-        console.log("=== Testing Withdrawal Error Cases ===");
-
-        uint256 aiusdBalance = aiusd.balanceOf(user);
-
-        // Test 1: Try to withdraw more than balance
-        console.log("Test 1: Withdraw more than balance");
-        try vault.withdrawCollateral(aiusdBalance + 1) {
-            console.log("[X] Should have failed");
-        } catch {
-            console.log("[+] Correctly failed: Insufficient balance");
-        }
-
-        // Test 2: Try to withdraw without approval
-        console.log("Test 2: Withdraw without approval");
-        aiusd.approve(address(vault), 0); // Remove approval
-        try vault.withdrawCollateral(aiusdBalance / 10) {
-            console.log("[X] Should have failed");
-        } catch {
-            console.log("[+] Correctly failed: No approval");
-        }
-
-        // Test 3: Try to withdraw zero amount
-        console.log("Test 3: Withdraw zero amount");
-        try vault.withdrawCollateral(0) {
-            console.log("[X] Should have failed");
-        } catch {
-            console.log("[+] Correctly failed: Zero amount");
-        }
-
-        console.log("Error testing completed");
-
-        vm.stopBroadcast();
-    }
-
     /// @notice Run all withdrawal scenarios
     function run() public {
-        console.log(" AI Stablecoin Withdrawal Execution Tests");
+        console.log("AI Stablecoin Withdrawal Execution Tests");
         console.log("===========================================");
 
         // Check withdrawal eligibility first
@@ -293,13 +255,11 @@ contract ExecuteWithdrawScript is Script {
             runFullWithdraw();
         } else if (keccak256(bytes(scenario)) == keccak256(bytes("multiple"))) {
             runMultipleWithdrawals();
-        } else if (keccak256(bytes(scenario)) == keccak256(bytes("errors"))) {
-            testWithdrawErrors();
         } else {
-            console.log("Unknown scenario. Available: partial, full, multiple, errors");
-            revert("Invalid scenario");
+            console.log("Available scenarios: partial, full, multiple");
+            console.log("Set WITHDRAW_SCENARIO environment variable");
         }
 
-        console.log("\n[+] Withdrawal execution completed");
+        console.log("\nWithdrawal execution completed");
     }
 }

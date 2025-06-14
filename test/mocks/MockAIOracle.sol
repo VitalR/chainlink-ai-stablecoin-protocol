@@ -21,6 +21,7 @@ contract MockAIOracle {
         address target;
         bytes4 functionSelector;
         uint64 gasLimit;
+        bytes callbackData;
     }
 
     struct PendingRequest {
@@ -53,7 +54,8 @@ contract MockAIOracle {
         callbacks[requestId] = CallbackInfo({
             target: callbackContract,
             functionSelector: bytes4(keccak256("aiOracleCallback(uint256,bytes,bytes)")),
-            gasLimit: gasLimit
+            gasLimit: gasLimit,
+            callbackData: callbackData
         });
 
         pendingRequests[requestId] = PendingRequest({
@@ -85,7 +87,7 @@ contract MockAIOracle {
 
         // Call back to the requester using aiOracleCallback
         (bool success,) = cbInfo.target.call{ gas: cbInfo.gasLimit }(
-            abi.encodeWithSelector(cbInfo.functionSelector, request.modelId, request.input, result)
+            abi.encodeWithSelector(cbInfo.functionSelector, requestId, result, cbInfo.callbackData)
         );
         require(success, "Callback failed");
 
