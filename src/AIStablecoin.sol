@@ -55,13 +55,21 @@ contract AIStablecoin is ERC20Burnable, ERC20Permit, OwnedThreeStep {
 
     /// @notice Burns a specific amount of AIUSD tokens from an address.
     /// @dev Overrides the `burnFrom` function of ERC20Burnable to include custom logic and can only be called by an
-    /// authorized vault.
+    /// authorized vault. Checks allowance before burning.
     /// @param _from The address from which tokens will be burned.
     /// @param _amount The number of tokens to burn.
     function burnFrom(address _from, uint256 _amount) public override onlyAuthorizedVaults {
         uint256 balance = balanceOf(_from);
         if (_amount == 0) revert InvalidAmount(_amount);
         if (balance < _amount) revert InvalidAmount(_amount);
+
+        // Check allowance (standard ERC20 pattern)
+        uint256 currentAllowance = allowance(_from, msg.sender);
+        if (currentAllowance != type(uint256).max) {
+            if (currentAllowance < _amount) revert InvalidAmount(_amount);
+            _approve(_from, msg.sender, currentAllowance - _amount);
+        }
+
         _burn(_from, _amount);
     }
 

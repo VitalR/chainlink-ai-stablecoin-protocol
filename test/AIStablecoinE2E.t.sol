@@ -373,4 +373,399 @@ contract AIStablecoinE2E is Test {
         console.log("User1 AIUSD balance:", aiusd.balanceOf(user1));
         console.log("User2 AIUSD balance:", aiusd.balanceOf(user2));
     }
+
+    // ========================================
+    // WITHDRAW FLOW TESTS
+    // ========================================
+
+    /// @notice Test basic withdraw flow: deposit → mint → withdraw
+    function test_withdraw_basic_flow() public {
+        vm.startPrank(user1);
+
+        // 1. Setup: Deposit and mint AIUSD first
+        address[] memory tokens = new address[](1);
+        uint256[] memory amounts = new uint256[](1);
+        tokens[0] = address(weth);
+        amounts[0] = 10 ether; // 10 ETH = $20,000
+
+        uint256 aiFee = controller.estimateTotalFee();
+        vault.depositBasket{ value: aiFee }(tokens, amounts);
+
+        (,,,,, uint256 requestId,) = vault.getPosition(user1);
+        vm.stopPrank();
+
+        // Process AI request
+        mockOracle.processRequest(requestId);
+
+        vm.startPrank(user1);
+
+        // Get initial state after minting
+        uint256 initialAiusdBalance = aiusd.balanceOf(user1);
+        uint256 initialWethBalance = weth.balanceOf(user1);
+        (,, uint256 initialTotalValue, uint256 initialAiusdMinted,,, bool initialHasPending) = vault.getPosition(user1);
+
+        assertGt(initialAiusdBalance, 0, "Should have AIUSD minted");
+        assertEq(initialAiusdBalance, initialAiusdMinted, "AIUSD balance should match minted amount");
+        assertFalse(initialHasPending, "Should not have pending request");
+
+        console.log("Initial AIUSD balance:", initialAiusdBalance);
+        console.log("Initial total value:", initialTotalValue);
+
+        // 2. Withdraw half of the position
+        uint256 withdrawAmount = initialAiusdBalance / 2;
+
+        // Approve vault to burn AIUSD
+        aiusd.approve(address(vault), withdrawAmount);
+
+        vault.withdrawCollateral(withdrawAmount);
+
+        // 3. Verify withdraw results
+        uint256 finalAiusdBalance = aiusd.balanceOf(user1);
+        uint256 finalWethBalance = weth.balanceOf(user1);
+        (,, uint256 finalTotalValue, uint256 finalAiusdMinted,,,) = vault.getPosition(user1);
+
+        // AIUSD should be burned
+        assertEq(finalAiusdBalance, initialAiusdBalance - withdrawAmount, "AIUSD should be burned");
+
+        // Should receive proportional collateral back
+        assertGt(finalWethBalance, initialWethBalance, "Should receive WETH back");
+
+        // Position should be updated proportionally
+        assertLt(finalTotalValue, initialTotalValue, "Total value should decrease");
+        assertEq(finalAiusdMinted, initialAiusdMinted - withdrawAmount, "Minted amount should decrease");
+
+        console.log("Final AIUSD balance:", finalAiusdBalance);
+        console.log("Final WETH balance:", finalWethBalance);
+        console.log("WETH received:", finalWethBalance - initialWethBalance);
+
+        vm.stopPrank();
+    }
+
+    /// @notice Test full withdrawal - user withdraws entire position
+    function test_withdraw_full_position() public {
+        vm.startPrank(user1);
+
+        // 1. Setup: Deposit and mint AIUSD
+        address[] memory tokens = new address[](1);
+        uint256[] memory amounts = new uint256[](1);
+        tokens[0] = address(weth);
+        amounts[0] = 5 ether;
+
+        uint256 aiFee = controller.estimateTotalFee();
+        vault.depositBasket{ value: aiFee }(tokens, amounts);
+
+        (,,,,, uint256 requestId,) = vault.getPosition(user1);
+        vm.stopPrank();
+
+        mockOracle.processRequest(requestId);
+
+        vm.startPrank(user1);
+
+        uint256 initialAiusdBalance = aiusd.balanceOf(user1);
+        uint256 initialWethBalance = weth.balanceOf(user1);
+
+        // 2. Withdraw entire position
+        aiusd.approve(address(vault), initialAiusdBalance);
+        vault.withdrawCollateral(initialAiusdBalance);
+
+        // 3. Verify complete withdrawal
+        uint256 finalAiusdBalance = aiusd.balanceOf(user1);
+        uint256 finalWethBalance = weth.balanceOf(user1);
+        (,, uint256 finalTotalValue, uint256 finalAiusdMinted,,,) = vault.getPosition(user1);
+
+        assertEq(finalAiusdBalance, 0, "All AIUSD should be burned");
+        assertEq(finalTotalValue, 0, "Position should be empty");
+        assertEq(finalAiusdMinted, 0, "No AIUSD should remain minted");
+
+        // Should receive all collateral back (minus any fees/rounding)
+        assertGt(finalWethBalance, initialWethBalance, "Should receive WETH back");
+
+        console.log("Full withdrawal - WETH received:", finalWethBalance - initialWethBalance);
+
+        vm.stopPrank();
+    }
+
+    /// @notice Test withdrawal from diversified basket
+    function test_withdraw_diversified_basket() public {
+        vm.startPrank(user2);
+
+        // 1. Setup: Deposit diversified basket
+        address[] memory tokens = new address[](3);
+        uint256[] memory amounts = new uint256[](3);
+        tokens[0] = address(weth);
+        amounts[0] = 2 ether; // $4,000
+        tokens[1] = address(wbtc);
+        amounts[1] = 0.04 * 1e8; // 0.04 BTC = $2,000
+        tokens[2] = address(usdc);
+        amounts[2] = 4000 * 1e6; // $4,000
+
+        uint256 aiFee = controller.estimateTotalFee();
+        vault.depositBasket{ value: aiFee }(tokens, amounts);
+
+        (,,,,, uint256 requestId,) = vault.getPosition(user2);
+        vm.stopPrank();
+
+        mockOracle.processRequest(requestId);
+
+        vm.startPrank(user2);
+
+        // Get initial balances
+        uint256 initialAiusdBalance = aiusd.balanceOf(user2);
+        uint256 initialWethBalance = weth.balanceOf(user2);
+        uint256 initialWbtcBalance = wbtc.balanceOf(user2);
+        uint256 initialUsdcBalance = usdc.balanceOf(user2);
+
+        // 2. Withdraw 25% of position
+        uint256 withdrawAmount = initialAiusdBalance / 4;
+        aiusd.approve(address(vault), withdrawAmount);
+        vault.withdrawCollateral(withdrawAmount);
+
+        // 3. Verify proportional withdrawal from all tokens
+        uint256 finalWethBalance = weth.balanceOf(user2);
+        uint256 finalWbtcBalance = wbtc.balanceOf(user2);
+        uint256 finalUsdcBalance = usdc.balanceOf(user2);
+
+        assertGt(finalWethBalance, initialWethBalance, "Should receive WETH back");
+        assertGt(finalWbtcBalance, initialWbtcBalance, "Should receive WBTC back");
+        assertGt(finalUsdcBalance, initialUsdcBalance, "Should receive USDC back");
+
+        console.log("Diversified withdrawal:");
+        console.log("WETH received:", finalWethBalance - initialWethBalance);
+        console.log("WBTC received:", finalWbtcBalance - initialWbtcBalance);
+        console.log("USDC received:", finalUsdcBalance - initialUsdcBalance);
+
+        vm.stopPrank();
+    }
+
+    /// @notice Test partial withdrawal maintains correct ratios
+    function test_withdraw_maintains_ratios() public {
+        vm.startPrank(user1);
+
+        // 1. Setup position
+        address[] memory tokens = new address[](2);
+        uint256[] memory amounts = new uint256[](2);
+        tokens[0] = address(weth);
+        amounts[0] = 4 ether; // $8,000
+        tokens[1] = address(usdc);
+        amounts[1] = 2000 * 1e6; // $2,000
+
+        uint256 aiFee = controller.estimateTotalFee();
+        vault.depositBasket{ value: aiFee }(tokens, amounts);
+
+        (,,,,, uint256 requestId,) = vault.getPosition(user1);
+        vm.stopPrank();
+
+        mockOracle.processRequest(requestId);
+
+        vm.startPrank(user1);
+
+        // Get initial position ratios
+        (address[] memory initialTokens, uint256[] memory initialAmounts,,,,,) = vault.getPosition(user1);
+        uint256 initialWethAmount = initialAmounts[0];
+        uint256 initialUsdcAmount = initialAmounts[1];
+        uint256 initialWethRatio = (initialWethAmount * 1e18) / (initialWethAmount + (initialUsdcAmount * 1e12)); // Normalize
+            // USDC to 18 decimals
+
+        uint256 initialAiusdBalance = aiusd.balanceOf(user1);
+
+        // 2. Withdraw 30% of position
+        uint256 withdrawAmount = (initialAiusdBalance * 30) / 100;
+        aiusd.approve(address(vault), withdrawAmount);
+        vault.withdrawCollateral(withdrawAmount);
+
+        // 3. Verify ratios are maintained
+        (address[] memory finalTokens, uint256[] memory finalAmounts,,,,,) = vault.getPosition(user1);
+        uint256 finalWethAmount = finalAmounts[0];
+        uint256 finalUsdcAmount = finalAmounts[1];
+        uint256 finalWethRatio = (finalWethAmount * 1e18) / (finalWethAmount + (finalUsdcAmount * 1e12));
+
+        // Ratios should be approximately the same (allowing for small rounding differences)
+        assertApproxEqRel(finalWethRatio, initialWethRatio, 0.01e18, "WETH ratio should be maintained");
+
+        console.log("Initial WETH ratio:", initialWethRatio);
+        console.log("Final WETH ratio:", finalWethRatio);
+
+        vm.stopPrank();
+    }
+
+    /// @notice Test withdraw error cases
+    function test_withdraw_error_cases() public {
+        vm.startPrank(user1);
+
+        // 1. Setup position first
+        address[] memory tokens = new address[](1);
+        uint256[] memory amounts = new uint256[](1);
+        tokens[0] = address(weth);
+        amounts[0] = 1 ether;
+
+        uint256 aiFee = controller.estimateTotalFee();
+        vault.depositBasket{ value: aiFee }(tokens, amounts);
+
+        (,,,,, uint256 requestId,) = vault.getPosition(user1);
+        vm.stopPrank();
+
+        mockOracle.processRequest(requestId);
+
+        vm.startPrank(user1);
+
+        uint256 aiusdBalance = aiusd.balanceOf(user1);
+
+        // Test: Withdraw more than balance
+        aiusd.approve(address(vault), type(uint256).max);
+        vm.expectRevert();
+        vault.withdrawCollateral(aiusdBalance + 1);
+
+        // Test: Withdraw zero amount
+        vm.expectRevert();
+        vault.withdrawCollateral(0);
+
+        // Test: Withdraw without approval (proper DeFi flow)
+        aiusd.approve(address(vault), 0);
+        vm.expectRevert();
+        vault.withdrawCollateral(aiusdBalance / 2);
+
+        vm.stopPrank();
+
+        // Test: Withdraw from empty position (different user)
+        vm.startPrank(user2);
+        vm.expectRevert();
+        vault.withdrawCollateral(1);
+        vm.stopPrank();
+    }
+
+    /// @notice Test withdraw with pending AI request should fail
+    function test_withdraw_with_pending_request_fails() public {
+        vm.startPrank(user1);
+
+        // 1. Deposit but don't process AI request yet
+        address[] memory tokens = new address[](1);
+        uint256[] memory amounts = new uint256[](1);
+        tokens[0] = address(weth);
+        amounts[0] = 1 ether;
+
+        uint256 aiFee = controller.estimateTotalFee();
+        vault.depositBasket{ value: aiFee }(tokens, amounts);
+
+        // Position should have pending request
+        (,,,,, uint256 requestId, bool hasPendingRequest) = vault.getPosition(user1);
+        assertTrue(hasPendingRequest, "Should have pending request");
+
+        // 2. Try to withdraw while request is pending - should fail
+        vm.expectRevert();
+        vault.withdrawCollateral(1);
+
+        vm.stopPrank();
+
+        // 3. Process request, then withdraw should work
+        mockOracle.processRequest(requestId);
+
+        vm.startPrank(user1);
+        uint256 aiusdBalance = aiusd.balanceOf(user1);
+        aiusd.approve(address(vault), aiusdBalance);
+        vault.withdrawCollateral(aiusdBalance); // Should not revert
+
+        vm.stopPrank();
+    }
+
+    /// @notice Test multiple partial withdrawals
+    function test_withdraw_multiple_partial() public {
+        vm.startPrank(user1);
+
+        // 1. Setup large position
+        address[] memory tokens = new address[](1);
+        uint256[] memory amounts = new uint256[](1);
+        tokens[0] = address(weth);
+        amounts[0] = 20 ether; // $40,000
+
+        uint256 aiFee = controller.estimateTotalFee();
+        vault.depositBasket{ value: aiFee }(tokens, amounts);
+
+        (,,,,, uint256 requestId,) = vault.getPosition(user1);
+        vm.stopPrank();
+
+        mockOracle.processRequest(requestId);
+
+        vm.startPrank(user1);
+
+        uint256 initialAiusdBalance = aiusd.balanceOf(user1);
+        uint256 initialWethBalance = weth.balanceOf(user1);
+
+        // 2. Make multiple partial withdrawals
+        uint256 withdrawAmount1 = initialAiusdBalance / 5; // 20%
+        uint256 withdrawAmount2 = initialAiusdBalance / 4; // 25% of original
+        uint256 withdrawAmount3 = initialAiusdBalance / 10; // 10%
+
+        // First withdrawal
+        aiusd.approve(address(vault), withdrawAmount1);
+        vault.withdrawCollateral(withdrawAmount1);
+
+        uint256 balanceAfter1 = aiusd.balanceOf(user1);
+        assertEq(balanceAfter1, initialAiusdBalance - withdrawAmount1, "First withdrawal should burn correct amount");
+
+        // Second withdrawal
+        aiusd.approve(address(vault), withdrawAmount2);
+        vault.withdrawCollateral(withdrawAmount2);
+
+        uint256 balanceAfter2 = aiusd.balanceOf(user1);
+        assertEq(
+            balanceAfter2,
+            initialAiusdBalance - withdrawAmount1 - withdrawAmount2,
+            "Second withdrawal should burn correct amount"
+        );
+
+        // Third withdrawal
+        aiusd.approve(address(vault), withdrawAmount3);
+        vault.withdrawCollateral(withdrawAmount3);
+
+        uint256 finalAiusdBalance = aiusd.balanceOf(user1);
+        uint256 finalWethBalance = weth.balanceOf(user1);
+
+        // Verify total withdrawals
+        uint256 totalWithdrawn = withdrawAmount1 + withdrawAmount2 + withdrawAmount3;
+        assertEq(finalAiusdBalance, initialAiusdBalance - totalWithdrawn, "Total AIUSD burned should match");
+        assertGt(finalWethBalance, initialWethBalance, "Should have received WETH back");
+
+        console.log("Multiple withdrawals completed:");
+        console.log("Total AIUSD burned:", totalWithdrawn);
+        console.log("Total WETH received:", finalWethBalance - initialWethBalance);
+
+        vm.stopPrank();
+    }
+
+    /// @notice Test withdraw events are emitted correctly
+    function test_withdraw_events() public {
+        vm.startPrank(user1);
+
+        // Setup position
+        address[] memory tokens = new address[](1);
+        uint256[] memory amounts = new uint256[](1);
+        tokens[0] = address(weth);
+        amounts[0] = 2 ether;
+
+        uint256 aiFee = controller.estimateTotalFee();
+        vault.depositBasket{ value: aiFee }(tokens, amounts);
+
+        (,,,,, uint256 requestId,) = vault.getPosition(user1);
+        vm.stopPrank();
+
+        mockOracle.processRequest(requestId);
+
+        vm.startPrank(user1);
+
+        uint256 aiusdBalance = aiusd.balanceOf(user1);
+        uint256 withdrawAmount = aiusdBalance / 2;
+
+        aiusd.approve(address(vault), withdrawAmount);
+
+        // Expect CollateralWithdrawn event
+        vm.expectEmit(true, false, false, true);
+        emit CollateralWithdrawn(user1, withdrawAmount);
+
+        vault.withdrawCollateral(withdrawAmount);
+
+        vm.stopPrank();
+    }
+
+    // Event declaration for testing
+    event CollateralWithdrawn(address indexed user, uint256 amount);
 }

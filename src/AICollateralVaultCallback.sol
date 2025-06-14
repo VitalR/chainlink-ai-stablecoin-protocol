@@ -12,6 +12,7 @@ import { AIStablecoin } from "./AIStablecoin.sol";
 interface IAIStablecoin {
     function mint(address to, uint256 amount) external;
     function burn(uint256 amount) external;
+    function burnFrom(address account, uint256 amount) external;
 }
 
 /// @title IERC20Extended Interface
@@ -230,8 +231,8 @@ contract AICollateralVaultCallback is OwnedThreeStep {
         // Calculate collateral to return (proportional)
         uint256 collateralRatio = (amount * 10_000) / position.aiusdMinted;
 
-        // Burn AIUSD
-        aiusd.burn(amount);
+        // Burn AIUSD from user's balance
+        aiusd.burnFrom(msg.sender, amount);
 
         // Return proportional collateral
         for (uint256 i = 0; i < position.tokens.length; i++) {
