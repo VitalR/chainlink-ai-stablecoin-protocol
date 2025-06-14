@@ -123,6 +123,12 @@ contract AICollateralVaultCallback is OwnedThreeStep {
         aiController = IAIControllerCallback(_aiController);
     }
 
+    /// @notice Receive function to accept ETH refunds from controller
+    receive() external payable {
+        // Accept ETH refunds from the AI controller
+        // The depositBasket function will forward these to the user
+    }
+
     /// @notice Deposits a basket of tokens as collateral and initiates AI assessment
     /// @dev Transfers tokens from user, stores position, and triggers AI evaluation
     /// @param tokens Array of token addresses to deposit
@@ -167,12 +173,23 @@ contract AICollateralVaultCallback is OwnedThreeStep {
         bytes memory basketData = _encodeBasketData(tokens, amounts, totalValueUSD);
 
         // Submit AI request with callback (forwards ETH for ORA fee)
+        // Store user address for potential refund
+        address originalUser = msg.sender;
+        uint256 balanceBefore = address(this).balance - msg.value;
+
         uint256 requestId = aiController.submitAIRequest{ value: msg.value }(msg.sender, basketData, totalValueUSD);
 
         // Update position with request ID
         positions[msg.sender].requestId = requestId;
 
         emit AIRequestSubmitted(msg.sender, requestId, totalValueUSD);
+
+        // Check if we received any refund and forward it to user
+        uint256 balanceAfter = address(this).balance;
+        if (balanceAfter > balanceBefore) {
+            uint256 refundAmount = balanceAfter - balanceBefore;
+            payable(originalUser).transfer(refundAmount);
+        }
     }
 
     /// @notice Processes the AI assessment callback and mints AIUSD
@@ -318,6 +335,7 @@ contract AICollateralVaultCallback is OwnedThreeStep {
     /// @return totalValueUSD Total position value in USD
     /// @return aiusdMinted Amount of AIUSD minted against position
     /// @return collateralRatio Current collateral ratio
+    /// @return requestId ID of the last AI assessment request
     /// @return hasPendingRequest Whether an AI assessment is pending
     function getPosition(address user)
         external
@@ -328,6 +346,7 @@ contract AICollateralVaultCallback is OwnedThreeStep {
             uint256 totalValueUSD,
             uint256 aiusdMinted,
             uint256 collateralRatio,
+            uint256 requestId,
             bool hasPendingRequest
         )
     {
@@ -338,6 +357,7 @@ contract AICollateralVaultCallback is OwnedThreeStep {
             position.totalValueUSD,
             position.aiusdMinted,
             position.collateralRatio,
+            position.requestId,
             position.hasPendingRequest
         );
     }

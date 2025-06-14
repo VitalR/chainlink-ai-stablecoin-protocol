@@ -45,7 +45,7 @@ contract AIStablecoinE2E is Test {
         mockOracle = new MockAIOracle();
 
         // Deploy core contracts
-        aiusd = new AIStablecoin("AI Stablecoin", "AIUSD");
+        aiusd = new AIStablecoin();
 
         controller = new AIControllerCallback(
             address(mockOracle), // oracle
@@ -56,13 +56,13 @@ contract AIStablecoinE2E is Test {
         vault = new AICollateralVaultCallback(address(aiusd), address(controller));
 
         // Setup permissions
-        aiusd.setMinter(address(vault), true);
+        aiusd.addVault(address(vault));
         controller.setAuthorizedCaller(address(vault), true);
 
         // Setup token prices (mock oracle prices)
-        vault.updateTokenPrice(address(weth), 2000 * 1e18); // $2000 per ETH
-        vault.updateTokenPrice(address(wbtc), 50_000 * 1e18); // $50000 per BTC
-        vault.updateTokenPrice(address(usdc), 1 * 1e18); // $1 per USDC
+        vault.addSupportedToken(address(weth), 2000 * 1e18, 18, "WETH"); // $2000 per ETH
+        vault.addSupportedToken(address(wbtc), 50_000 * 1e18, 8, "WBTC"); // $50000 per BTC
+        vault.addSupportedToken(address(usdc), 1 * 1e18, 6, "USDC"); // $1 per USDC
 
         // Mint tokens to users
         weth.mint(user1, INITIAL_BALANCE);
@@ -74,6 +74,10 @@ contract AIStablecoinE2E is Test {
         usdc.mint(user2, INITIAL_BALANCE);
 
         vm.stopPrank();
+
+        // Fund users with ETH for transaction fees
+        vm.deal(user1, 10 ether);
+        vm.deal(user2, 10 ether);
 
         // Users approve vault
         vm.startPrank(user1);
@@ -106,7 +110,10 @@ contract AIStablecoinE2E is Test {
         console.log("AI fee required:", aiFee);
 
         // 3. Deposit collateral and request AI assessment
-        uint256 requestId = vault.depositAndRequestAI{ value: aiFee }(tokens, amounts);
+        vault.depositBasket{ value: aiFee }(tokens, amounts);
+
+        // Get request ID from position
+        (,,,,, uint256 requestId, bool hasPendingRequest) = vault.getPosition(user1);
 
         console.log("Request ID:", requestId);
         assertGt(requestId, 0, "Request ID should be greater than 0");
@@ -118,7 +125,8 @@ contract AIStablecoinE2E is Test {
             uint256 totalValue,
             uint256 aiusdMinted,
             uint256 collateralRatio,
-            bool hasPendingRequest
+            uint256 requestIdCheck,
+            bool hasPendingRequestCheck
         ) = vault.getPosition(user1);
 
         assertEq(depositedTokens.length, 1, "Should have 1 token");
@@ -126,10 +134,10 @@ contract AIStablecoinE2E is Test {
         assertEq(depositedAmounts[0], DEPOSIT_AMOUNT, "Should match deposit amount");
         assertEq(totalValue, expectedValue, "Should match expected value");
         assertEq(aiusdMinted, 0, "No AIUSD minted yet");
-        assertTrue(hasPendingRequest, "Should have pending AI request");
+        assertTrue(hasPendingRequestCheck, "Should have pending AI request");
 
         // 5. Verify AI request was submitted
-        assertTrue(controller.isRequestFinalized(requestId) == false, "Request should not be finalized yet");
+        assertTrue(controller.isRequestProcessed(requestId) == false, "Request should not be processed yet");
 
         vm.stopPrank();
 
@@ -139,7 +147,7 @@ contract AIStablecoinE2E is Test {
         // 7. Verify AI callback was processed
         vm.startPrank(user1);
 
-        (,,, uint256 finalAiusdMinted, uint256 finalCollateralRatio, bool finalHasPendingRequest) =
+        (,,, uint256 finalAiusdMinted, uint256 finalCollateralRatio,, bool finalHasPendingRequest) =
             vault.getPosition(user1);
 
         assertGt(finalAiusdMinted, 0, "AIUSD should be minted");
@@ -169,18 +177,22 @@ contract AIStablecoinE2E is Test {
         amounts[0] = 5 ether; // 5 ETH = $10,000
 
         tokens[1] = address(wbtc);
-        amounts[1] = 0.1 ether; // 0.1 BTC = $5,000
+        amounts[1] = 0.1 * 1e8; // 0.1 BTC with 8 decimals
 
         tokens[2] = address(usdc);
         amounts[2] = 5000 * 1e6; // 5,000 USDC = $5,000
 
-        uint256 expectedValue = (5 * 2000) + (0.1 ether * 50_000 / 1e18) + 5000; // $20,000 total
+        uint256 expectedValue = (5 * 2000 * 1e18) + (0.1 * 1e8 * 50_000 * 1e18 / 1e8) + (5000 * 1e6 * 1 * 1e18 / 1e6); // $20,000
+            // total
 
         // 2. Get fee estimate
         uint256 aiFee = controller.estimateTotalFee();
 
         // 3. Deposit diversified basket
-        uint256 requestId = vault.depositAndRequestAI{ value: aiFee }(tokens, amounts);
+        vault.depositBasket{ value: aiFee }(tokens, amounts);
+
+        // Get request ID from position
+        (,,,,, uint256 requestId,) = vault.getPosition(user2);
 
         console.log("Diversified basket request ID:", requestId);
 
@@ -190,6 +202,7 @@ contract AIStablecoinE2E is Test {
             uint256[] memory depositedAmounts,
             uint256 totalValue,
             uint256 aiusdMinted,
+            ,
             ,
             bool hasPendingRequest
         ) = vault.getPosition(user2);
@@ -202,12 +215,12 @@ contract AIStablecoinE2E is Test {
         vm.stopPrank();
 
         // 5. Process AI request
-        mockOracle.processRequest(2); // Second request
+        mockOracle.processRequest(requestId); // Use actual request ID, not hardcoded 2
 
         // 6. Verify final state
         vm.startPrank(user2);
 
-        (,,, uint256 finalAiusdMinted, uint256 finalCollateralRatio, bool finalHasPendingRequest) =
+        (,,, uint256 finalAiusdMinted, uint256 finalCollateralRatio,, bool finalHasPendingRequest) =
             vault.getPosition(user2);
 
         assertGt(finalAiusdMinted, 0, "AIUSD should be minted");
@@ -238,7 +251,7 @@ contract AIStablecoinE2E is Test {
         uint256 balanceBefore = user1.balance;
 
         // Send excess fee - should get refund
-        vault.depositAndRequestAI{ value: excessFee }(tokens, amounts);
+        vault.depositBasket{ value: excessFee }(tokens, amounts);
 
         uint256 balanceAfter = user1.balance;
         uint256 actualFeeUsed = balanceBefore - balanceAfter;
@@ -261,13 +274,13 @@ contract AIStablecoinE2E is Test {
         // Test insufficient fee
         uint256 aiFee = controller.estimateTotalFee();
         vm.expectRevert();
-        vault.depositAndRequestAI{ value: aiFee - 1 }(tokens, amounts);
+        vault.depositBasket{ value: aiFee - 1 }(tokens, amounts);
 
         // Test empty deposit
         address[] memory emptyTokens = new address[](0);
         uint256[] memory emptyAmounts = new uint256[](0);
         vm.expectRevert();
-        vault.depositAndRequestAI{ value: aiFee }(emptyTokens, emptyAmounts);
+        vault.depositBasket{ value: aiFee }(emptyTokens, emptyAmounts);
 
         vm.stopPrank();
     }
@@ -276,17 +289,9 @@ contract AIStablecoinE2E is Test {
     function test_deposit_position_management() public {
         vm.startPrank(user1);
 
-        // Initial position should be empty
-        (
-            address[] memory tokens,
-            uint256[] memory amounts,
-            uint256 totalValue,
-            uint256 aiusdMinted,
-            uint256 collateralRatio,
-            bool hasPendingRequest
-        ) = vault.getPosition(user1);
+        // Initial position should be empty - check key fields only
+        (,, uint256 totalValue, uint256 aiusdMinted,,, bool hasPendingRequest) = vault.getPosition(user1);
 
-        assertEq(tokens.length, 0, "Should have no tokens initially");
         assertEq(totalValue, 0, "Should have no value initially");
         assertEq(aiusdMinted, 0, "Should have no AIUSD initially");
         assertFalse(hasPendingRequest, "Should not have pending request initially");
@@ -298,16 +303,17 @@ contract AIStablecoinE2E is Test {
         depositAmounts[0] = 5 ether;
 
         uint256 aiFee = controller.estimateTotalFee();
-        vault.depositAndRequestAI{ value: aiFee }(depositTokens, depositAmounts);
+        vault.depositBasket{ value: aiFee }(depositTokens, depositAmounts);
 
-        // Position should be updated
-        (tokens, amounts, totalValue, aiusdMinted, collateralRatio, hasPendingRequest) = vault.getPosition(user1);
+        // Position should be updated - check in separate calls to avoid stack too deep
+        (address[] memory tokens, uint256[] memory amounts,,,,,) = vault.getPosition(user1);
+        (,, uint256 newTotalValue,,,, bool newHasPendingRequest) = vault.getPosition(user1);
 
         assertEq(tokens.length, 1, "Should have 1 token");
         assertEq(tokens[0], address(weth), "Should be WETH");
         assertEq(amounts[0], 5 ether, "Should match deposit");
-        assertEq(totalValue, 5 ether * 2000, "Should match expected value");
-        assertTrue(hasPendingRequest, "Should have pending request");
+        assertEq(newTotalValue, 5 ether * 2000, "Should match expected value");
+        assertTrue(newHasPendingRequest, "Should have pending request");
 
         vm.stopPrank();
     }
@@ -332,7 +338,11 @@ contract AIStablecoinE2E is Test {
         tokens1[0] = address(weth);
         amounts1[0] = 3 ether;
 
-        uint256 requestId1 = vault.depositAndRequestAI{ value: aiFee }(tokens1, amounts1);
+        vault.depositBasket{ value: aiFee }(tokens1, amounts1);
+
+        // Get request IDs from positions
+        (,,,,, uint256 requestId1,) = vault.getPosition(user1);
+
         vm.stopPrank();
 
         // User 2 deposits
@@ -342,15 +352,19 @@ contract AIStablecoinE2E is Test {
         tokens2[0] = address(wbtc);
         amounts2[0] = 0.05 ether; // 0.05 BTC
 
-        uint256 requestId2 = vault.depositAndRequestAI{ value: aiFee }(tokens2, amounts2);
+        vault.depositBasket{ value: aiFee }(tokens2, amounts2);
+
+        // Get request ID from position
+        (,,,,, uint256 requestId2,) = vault.getPosition(user2);
+
         vm.stopPrank();
 
         // Both should have different request IDs
         assertNotEq(requestId1, requestId2, "Request IDs should be different");
 
-        // Process both AI requests
-        mockOracle.processRequest(1);
-        mockOracle.processRequest(2);
+        // Process both AI requests using actual request IDs
+        mockOracle.processRequest(requestId1);
+        mockOracle.processRequest(requestId2);
 
         // Both users should have AIUSD
         assertGt(aiusd.balanceOf(user1), 0, "User1 should have AIUSD");

@@ -5,6 +5,9 @@ pragma solidity 0.8.30;
 /// @notice Provides deterministic AI responses for testing the full flow
 /// @dev Implements the same interface as ORA Oracle
 contract MockAIOracle {
+    /// @notice Mock fee for AI requests (matches real AIOracle)
+    uint256 public fee = 0.001 ether;
+
     /// @notice Request ID counter
     uint256 public nextRequestId = 1;
 
@@ -16,8 +19,8 @@ contract MockAIOracle {
 
     struct CallbackInfo {
         address target;
+        bytes4 functionSelector;
         uint64 gasLimit;
-        bytes callbackData;
     }
 
     struct PendingRequest {
@@ -36,20 +39,19 @@ contract MockAIOracle {
     /// @param modelId The AI model to use
     /// @param input The encoded input data
     /// @param callbackContract Where to send the result
+    /// @param functionSelector Function selector to call
     /// @param gasLimit Gas limit for callback
-    /// @param callbackData Data to pass back in callback
-    /// @return requestId The ID of this request
     function requestCallback(
         uint256 modelId,
         bytes calldata input,
         address callbackContract,
-        uint64 gasLimit,
-        bytes calldata callbackData
-    ) external payable returns (uint256 requestId) {
-        requestId = nextRequestId++;
+        bytes4 functionSelector,
+        uint64 gasLimit
+    ) external payable {
+        uint256 requestId = nextRequestId++;
 
         callbacks[requestId] =
-            CallbackInfo({ target: callbackContract, gasLimit: gasLimit, callbackData: callbackData });
+            CallbackInfo({ target: callbackContract, functionSelector: functionSelector, gasLimit: gasLimit });
 
         pendingRequests[requestId] = PendingRequest({
             modelId: modelId,
@@ -79,7 +81,7 @@ contract MockAIOracle {
 
         // Call back to the requester using aiOracleCallback
         (bool success,) = cbInfo.target.call{ gas: cbInfo.gasLimit }(
-            abi.encodeWithSignature("aiOracleCallback(uint256,bytes,bytes)", requestId, result, cbInfo.callbackData)
+            abi.encodeWithSelector(cbInfo.functionSelector, request.modelId, request.input, result)
         );
         require(success, "Callback failed");
 
