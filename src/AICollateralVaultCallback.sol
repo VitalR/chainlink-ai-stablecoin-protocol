@@ -85,6 +85,7 @@ contract AICollateralVaultCallback is OwnedThreeStep {
     event TokenAdded(address indexed token, uint256 priceUSD, uint8 decimals);
     event TokenPriceUpdated(address indexed token, uint256 newPriceUSD);
     event EmergencyRequestCleared(address indexed user, uint256 indexed requestId);
+    event AIControllerUpdated(address indexed oldController, address indexed newController);
 
     /// @notice Custom errors
     error TokenNotSupported();
@@ -102,6 +103,7 @@ contract AICollateralVaultCallback is OwnedThreeStep {
     error InvalidPrice();
     error EmptySymbol();
     error SymbolTooLong();
+    error ZeroAddress();
 
     /// @notice Restricts function access to AI controller
     modifier onlyAIController() {
@@ -437,6 +439,18 @@ contract AICollateralVaultCallback is OwnedThreeStep {
     /// @param token Address of the token to pause
     function emergencyPauseToken(address token) external onlyOwner {
         supportedTokens[token].supported = false;
+    }
+
+    /// @notice Updates the AI controller address
+    /// @dev Only callable by owner, allows switching to a new AI controller
+    /// @param newController Address of the new AI controller contract
+    function updateAIController(address newController) external onlyOwner {
+        if (newController == address(0)) revert ZeroAddress();
+
+        address oldController = address(aiController);
+        aiController = IAIControllerCallback(newController);
+
+        emit AIControllerUpdated(oldController, newController);
     }
 
     /// @notice Calculates the USD value of a token amount

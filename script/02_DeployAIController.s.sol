@@ -13,6 +13,7 @@ contract DeployAIControllerScript is Script {
     address constant ORA_ORACLE_SEPOLIA = 0x0A0f4321214BB6C7811dD8a71cF587bdaF03f0A0;
     uint256 constant MODEL_ID = 11; // Llama3 8B Instruct
     uint64 constant CALLBACK_GAS_LIMIT = 500_000;
+    uint256 constant ORACLE_FEE = 0.01 ether; // Sepolia testnet fee from ORA docs
 
     function setUp() public {
         deployerPublicKey = vm.envAddress("DEPLOYER_PUBLIC_KEY");
@@ -22,7 +23,7 @@ contract DeployAIControllerScript is Script {
     function run() public {
         vm.startBroadcast(deployerPrivateKey);
 
-        controller = new AIControllerCallback(ORA_ORACLE_SEPOLIA, MODEL_ID, CALLBACK_GAS_LIMIT);
+        controller = new AIControllerCallback(ORA_ORACLE_SEPOLIA, MODEL_ID, CALLBACK_GAS_LIMIT, ORACLE_FEE);
 
         console.log("==AIControllerCallback addr=%s", address(controller));
         console.log("==Oracle addr=%s", ORA_ORACLE_SEPOLIA);

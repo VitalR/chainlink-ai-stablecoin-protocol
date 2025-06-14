@@ -56,7 +56,7 @@ echo "DEPLOYER_PUBLIC_KEY=0x..."
 echo "DEPLOYER_PRIVATE_KEY=0x..."
 echo "SEPOLIA_RPC_URL=https://..."
 echo "ETHERSCAN_API_KEY=..."
-echo "GAS_LIMIT=3000000"
+echo "GAS_LIMIT=3000000"ETHERSCAN_API_KEY
 echo "GAS_PRICE=20000000000"
 echo ""
 echo "# After step 3"

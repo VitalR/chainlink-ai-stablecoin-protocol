@@ -2,7 +2,8 @@
 pragma solidity 0.8.30;
 
 import { AIOracleCallbackReceiver } from "OAO/contracts/AIOracleCallbackReceiver.sol";
-import { IAIOracle } from "OAO/contracts/IAIOracle.sol";
+import { IAIOracle as OAOInterface } from "OAO/contracts/IAIOracle.sol";
+import { IAIOracle } from "./interfaces/IAIOracle.sol";
 import { AIOracle } from "OAO/contracts/AIOracle.sol";
 import { OwnedThreeStep } from "@solbase/auth/OwnedThreeStep.sol";
 
@@ -56,6 +57,7 @@ contract AIControllerCallback is OwnedThreeStep, AIOracleCallbackReceiver {
     );
     event AuthorizedCallerUpdated(address indexed caller, bool authorized);
     event FeeUpdated(uint256 fee);
+    event OracleFeeUpdated(uint256 oracleFee);
     event ModelIdUpdated(uint256 modelId);
     event PromptTemplateUpdated(string newTemplate);
 
@@ -63,25 +65,32 @@ contract AIControllerCallback is OwnedThreeStep, AIOracleCallbackReceiver {
     uint256 public modelId = 11; // Default model
     uint64 public callbackGasLimit = 500_000; // Gas for callback
     uint256 public flatFee = 0; // Additional flat fee on top of oracle fee
+    uint256 public oracleFee = 0.01 ether; // Configurable oracle fee (default 0.01 ETH)
+
+    /// @notice Correct ORA Oracle interface (the aiOracle from parent is limited)
+    IAIOracle public oraOracle;
 
     /// @notice Updateable prompt template for AI requests
     string public promptTemplate =
         "Analyze this DeFi collateral basket for OPTIMAL LOW ratio. Maximize capital efficiency while ensuring safety. Consider volatility, correlation, liquidity. Respond: RATIO:XXX CONFIDENCE:YY (130-170%, 0-100%).";
 
     /// @notice Initializes the contract
-    constructor(address _oracle, uint256 _modelId, uint64 _callbackGasLimit)
+    constructor(address _oracle, uint256 _modelId, uint64 _callbackGasLimit, uint256 _oracleFee)
         OwnedThreeStep(msg.sender)
-        AIOracleCallbackReceiver(IAIOracle(_oracle))
+        AIOracleCallbackReceiver(OAOInterface(_oracle))
     {
         modelId = _modelId;
         callbackGasLimit = _callbackGasLimit;
+        oracleFee = _oracleFee; // Set initial oracle fee
+        oraOracle = IAIOracle(_oracle); // Initialize our correct ORA interface
     }
 
     /// @notice Estimate total fee required for AI request
     /// @return Total fee including oracle fee and flat fee
     function estimateTotalFee() public view returns (uint256) {
-        // Get the fee from the oracle contract
-        return AIOracle(address(aiOracle)).fee() + flatFee;
+        // ORA Oracle has fixed fees: 0.01 ETH for testnet, 0.0003 ETH for mainnet
+        // Using configurable oracleFee instead of calling the non-existent estimateFee function
+        return oracleFee + flatFee;
     }
 
     /// @notice Submit AI request with automatic callback processing
@@ -106,8 +115,9 @@ contract AIControllerCallback is OwnedThreeStep, AIOracleCallbackReceiver {
         bytes memory input = bytes(prompt);
 
         // Submit to ORA OAO with callback
-        aiOracle.requestCallback{ value: requiredFee }(
-            modelId, input, address(this), this.aiOracleCallback.selector, callbackGasLimit
+        bytes memory callbackData = abi.encode(msg.sender, user, basketData, collateralValue);
+        uint256 oracleRequestId = oraOracle.requestCallback{ value: requiredFee }(
+            modelId, input, address(this), callbackGasLimit, callbackData
         );
 
         // Store request info using internal request ID as key (since we don't get oracle ID back)
@@ -121,7 +131,7 @@ contract AIControllerCallback is OwnedThreeStep, AIOracleCallbackReceiver {
             internalRequestId: internalRequestId
         });
 
-        emit AIRequestSubmitted(internalRequestId, 0, user, msg.sender); // Oracle ID not available
+        emit AIRequestSubmitted(internalRequestId, oracleRequestId, user, msg.sender);
 
         // Refund excess (ORA protocol pattern)
         if (msg.value > requiredFee) {
@@ -133,15 +143,19 @@ contract AIControllerCallback is OwnedThreeStep, AIOracleCallbackReceiver {
 
     /// @notice ORA callback - automatically processes AI result and triggers minting
     /// @dev This is called by ORA OAO when AI processing completes
-    /// @param _modelId The model ID used
-    /// @param input The input that was sent
+    /// @param requestId The oracle request ID
     /// @param output AI model output
-    function aiOracleCallback(uint256 _modelId, bytes calldata input, bytes calldata output)
+    /// @param callbackData Encoded callback data containing request info
+    function aiOracleCallback(uint256 requestId, bytes calldata output, bytes calldata callbackData)
         external
         onlyAIOracleCallback
     {
-        // Find the matching request by input (since we don't have oracle request ID)
-        uint256 matchingRequestId = _findRequestByInput(input);
+        // Decode callback data
+        (address vault, address user, bytes memory basketData, uint256 collateralValue) =
+            abi.decode(callbackData, (address, address, bytes, uint256));
+
+        // Find the matching request by vault and user
+        uint256 matchingRequestId = _findRequestByUser(vault, user);
         if (matchingRequestId == 0) revert RequestIdMismatch();
 
         RequestInfo storage request = requests[matchingRequestId];
@@ -162,21 +176,18 @@ contract AIControllerCallback is OwnedThreeStep, AIOracleCallbackReceiver {
         // Automatically trigger minting in vault
         _triggerMinting(request.vault, request.user, matchingRequestId, mintAmount, ratio, confidence);
 
-        emit AIResultProcessed(matchingRequestId, 0, ratio, confidence, mintAmount); // Oracle ID not available
+        emit AIResultProcessed(matchingRequestId, requestId, ratio, confidence, mintAmount);
     }
 
-    /// @notice Find request by input data (helper function)
-    function _findRequestByInput(bytes calldata input) internal view returns (uint256) {
-        // Simple approach: iterate through recent requests to find matching input
-        // In production, you might want a more efficient lookup mechanism
-        for (uint256 i = 1; i < requestCounter; i++) {
-            if (requests[i].timestamp > 0 && !requests[i].processed) {
-                // Create expected prompt and compare
-                bytes memory basketDataMemory = requests[i].basketData;
-                string memory expectedPrompt = _createPrompt(basketDataMemory, requests[i].collateralValue);
-                if (keccak256(input) == keccak256(bytes(expectedPrompt))) {
-                    return i;
-                }
+    /// @notice Find request by vault and user (helper function)
+    function _findRequestByUser(address vault, address user) internal view returns (uint256) {
+        // Find the most recent unprocessed request for this vault and user
+        for (uint256 i = requestCounter - 1; i >= 1; i--) {
+            if (
+                requests[i].vault == vault && requests[i].user == user && requests[i].timestamp > 0
+                    && !requests[i].processed
+            ) {
+                return i;
             }
         }
         return 0;
@@ -338,6 +349,12 @@ contract AIControllerCallback is OwnedThreeStep, AIOracleCallbackReceiver {
         if (newModelId == 0) revert InvalidModelId();
         modelId = newModelId;
         emit ModelIdUpdated(newModelId);
+    }
+
+    /// @notice Update oracle fee
+    function updateOracleFee(uint256 newOracleFee) external onlyOwner {
+        oracleFee = newOracleFee;
+        emit OracleFeeUpdated(newOracleFee);
     }
 
     /// @notice Update flat fee

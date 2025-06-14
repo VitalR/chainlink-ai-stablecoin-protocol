@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-/// @title IAIOracle - Interface for ORA OAO
+/// @title IAIOracle - Interface for ORA OAO (Complete Version)
 /// @notice Defines the core functionality for AI oracle interactions
+/// @dev Based on the working interface from bootcamp projects and proxy implementation
 interface IAIOracle {
     /// @notice Event emitted upon receiving a callback request
     event AICallbackRequest(
@@ -19,17 +20,18 @@ interface IAIOracle {
     event AICallbackResult(uint256 requestId, bytes output);
 
     /// @notice Submit a callback request to the AI oracle
-    /// @param modelId The AI model to use
-    /// @param input The input data for the model
-    /// @param callbackContract The contract to call back with the result
-    /// @param callbackGasLimit Gas limit for the callback
-    /// @param callbackData Additional data to pass to the callback
+    /// @dev Initiates a request in OAO
+    /// @param modelId ID for AI model
+    /// @param input Input for AI model
+    /// @param callbackContract Address of callback contract
+    /// @param gasLimit Gas limitation of calling the callback function
+    /// @param callbackData Optional, user-defined data, will send back to the callback function
     /// @return requestId The ID of this request
     function requestCallback(
         uint256 modelId,
         bytes calldata input,
         address callbackContract,
-        uint64 callbackGasLimit,
+        uint64 gasLimit,
         bytes calldata callbackData
     ) external payable returns (uint256 requestId);
 
@@ -43,4 +45,9 @@ interface IAIOracle {
     /// @param requestId The request ID to check
     /// @return Whether the request is finalized
     function isFinalized(uint256 requestId) external view returns (bool);
+
+    /// @notice Get the result of an AI request
+    /// @param requestId The request ID to get result for
+    /// @return The AI result as bytes
+    function getResult(uint256 requestId) external view returns (bytes memory);
 }

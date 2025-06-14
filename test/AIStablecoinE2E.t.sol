@@ -50,7 +50,8 @@ contract AIStablecoinE2E is Test {
         controller = new AIControllerCallback(
             address(mockOracle), // oracle
             11, // model ID
-            500_000 // gas limit
+            500_000, // gas limit
+            0.01 ether // oracle fee
         );
 
         vault = new AICollateralVaultCallback(address(aiusd), address(controller));
