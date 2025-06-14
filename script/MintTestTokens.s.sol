@@ -18,9 +18,18 @@ contract MintTestTokensScript is Script {
     uint256 userPrivateKey;
 
     function setUp() public {
-        // Get user credentials
-        user = vm.envAddress("USER_PUBLIC_KEY");
-        userPrivateKey = vm.envUint("USER_PRIVATE_KEY");
+        // Get target user (default to USER, or USER_2 if specified)
+        string memory targetUser = vm.envOr("MINT_TARGET_USER", string("USER"));
+
+        if (keccak256(abi.encodePacked(targetUser)) == keccak256(abi.encodePacked("USER_2"))) {
+            user = vm.envAddress("USER_2_PUBLIC_KEY");
+            userPrivateKey = vm.envUint("USER_2_PRIVATE_KEY");
+            console.log("Using USER_2 credentials");
+        } else {
+            user = vm.envAddress("USER_PUBLIC_KEY");
+            userPrivateKey = vm.envUint("USER_PRIVATE_KEY");
+            console.log("Using USER credentials");
+        }
     }
 
     /// @notice Mint generous amounts of test tokens to user
