@@ -152,7 +152,7 @@ export function UserPosition() {
           <div>
             <div className="text-sm text-gray-600">AIUSD Minted</div>
             <div className="text-2xl font-bold text-blue-600">
-              {formatTokenAmount(aiusdMinted)} AIUSD
+              {formatTokenAmount(aiusdMinted, 18, 4)} AIUSD
             </div>
           </div>
         </div>
@@ -233,7 +233,7 @@ export function UserPosition() {
         <div className="flex justify-between items-center">
           <span className="text-gray-600">Your AIUSD Balance:</span>
           <span className="font-bold text-lg text-blue-600">
-            {aiusdBalance ? formatTokenAmount(aiusdBalance) : '0'} AIUSD
+            {aiusdBalance ? formatTokenAmount(aiusdBalance, 18, 4) : '0'} AIUSD
           </span>
         </div>
       </div>

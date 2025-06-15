@@ -4,8 +4,8 @@ import { sepolia } from 'wagmi/chains';
 // Contract addresses from deployment
 export const CONTRACTS = {
   AI_STABLECOIN: '0xb4036672FE9f82ff0B9149beBD6721538e085ffa' as `0x${string}`,
-  AI_CONTROLLER: '0x0C8516a5B5465547746DFB0cA80897E456Cc68C8' as `0x${string}`,
-  AI_VAULT: '0x0d8a34dCD87b50291c4F7b0706Bfde71Abd1aFf2' as `0x${string}`,
+  AI_CONTROLLER: '0xdE56263d5d478E0926da56375CD9927d5EE3af72' as `0x${string}`,
+  AI_VAULT: '0x3b8Fd1cB957B96e9082c270938B1C1C083e3fb94' as `0x${string}`,
   MOCK_DAI: '0xF19061331751efd44eCd2E9f49903b7D68651368' as `0x${string}`,
   MOCK_WETH: '0x7f4eb26422b35D3AA5a72D7711aD12905bb69F59' as `0x${string}`,
   MOCK_WBTC: '0x4a098CaCd639aE0CC70F6f03d4A01608286b155d' as `0x${string}`,
@@ -180,7 +180,8 @@ export const AI_STABLECOIN_ABI = [
 // Utility functions
 export function formatTokenAmount(
   amount: bigint,
-  decimals: number = 18
+  decimals: number = 18,
+  maxDecimals: number = 4
 ): string {
   const divisor = BigInt(10 ** decimals);
   const quotient = amount / divisor;
@@ -190,7 +191,13 @@ export function formatTokenAmount(
 
   const remainderStr = remainder.toString().padStart(decimals, '0');
   const trimmed = remainderStr.replace(/0+$/, '');
-  return trimmed ? `${quotient}.${trimmed}` : quotient.toString();
+
+  if (!trimmed) return quotient.toString();
+
+  // Limit decimal places for display
+  const limitedDecimals =
+    trimmed.length > maxDecimals ? trimmed.slice(0, maxDecimals) : trimmed;
+  return `${quotient}.${limitedDecimals}`;
 }
 
 export function parseTokenAmount(

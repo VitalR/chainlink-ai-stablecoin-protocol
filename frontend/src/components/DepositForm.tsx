@@ -25,12 +25,8 @@ export function DepositForm() {
     WBTC: '',
   });
 
-  // Read AI fee
-  const { data: aiFee } = useReadContract({
-    address: CONTRACTS.AI_CONTROLLER,
-    abi: AI_CONTROLLER_ABI,
-    functionName: 'estimateTotalFee',
-  }) as { data: bigint | undefined };
+  // Use fixed fee for demo (0.001 ETH)
+  const aiFee = parseEther('0.001');
 
   // Read token balances
   const { data: daiBalance } = useReadContract({
@@ -95,7 +91,7 @@ export function DepositForm() {
         abi: AI_VAULT_ABI,
         functionName: 'depositBasket',
         args: [tokens, amounts],
-        value: aiFee || parseEther('0.015'),
+        value: aiFee,
       });
     } catch (error) {
       console.error('Deposit failed:', error);
@@ -117,12 +113,19 @@ export function DepositForm() {
               : wbtcBalance;
 
           return (
-            <div key={symbol} className="border rounded-lg p-4">
+            <div
+              key={symbol}
+              className="border rounded-lg p-4 bg-white shadow-sm"
+            >
               <div className="flex justify-between items-center mb-2">
-                <label className="font-medium text-gray-700">{symbol}</label>
-                <span className="text-sm text-gray-500">
+                <label className="font-semibold text-gray-800">{symbol}</label>
+                <span className="text-sm font-medium text-blue-600">
                   Balance:{' '}
-                  {balance ? formatTokenAmount(balance, config.decimals) : '0'}
+                  <span className="font-bold">
+                    {balance
+                      ? formatTokenAmount(balance, config.decimals)
+                      : '0'}
+                  </span>
                 </span>
               </div>
               <div className="flex items-center space-x-2">
@@ -131,20 +134,24 @@ export function DepositForm() {
                   placeholder="0.0"
                   value={selectedTokens[symbol]}
                   onChange={(e) => handleTokenChange(symbol, e.target.value)}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium bg-white text-gray-900 placeholder-gray-400 autofill:bg-white autofill:text-gray-900"
                   step="any"
+                  autoComplete="off"
                 />
-                <span className="text-sm text-gray-500 min-w-[80px]">
+                <span className="text-sm font-bold text-gray-800 min-w-[80px] bg-gray-100 px-2 py-1 rounded">
                   ${config.price.toLocaleString()}
                 </span>
               </div>
               {selectedTokens[symbol] &&
                 parseFloat(selectedTokens[symbol]) > 0 && (
-                  <div className="mt-1 text-sm text-gray-600">
-                    Value: $
-                    {(
-                      parseFloat(selectedTokens[symbol]) * config.price
-                    ).toLocaleString()}
+                  <div className="mt-2 text-sm">
+                    <span className="text-gray-600">Value: </span>
+                    <span className="font-bold text-green-600">
+                      $
+                      {(
+                        parseFloat(selectedTokens[symbol]) * config.price
+                      ).toLocaleString()}
+                    </span>
                   </div>
                 )}
             </div>
@@ -153,16 +160,20 @@ export function DepositForm() {
       </div>
 
       {/* Summary */}
-      <div className="bg-gray-50 rounded-lg p-4">
+      <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-4 border border-blue-200">
         <div className="flex justify-between items-center mb-2">
-          <span className="font-medium">Total Collateral Value:</span>
-          <span className="text-lg font-bold text-green-600">
+          <span className="font-semibold text-gray-800">
+            Total Collateral Value:
+          </span>
+          <span className="text-xl font-bold text-green-600">
             ${totalValue.toLocaleString()}
           </span>
         </div>
-        <div className="flex justify-between items-center text-sm text-gray-600">
-          <span>AI Processing Fee:</span>
-          <span>{aiFee ? formatEther(aiFee) : '0.015'} ETH</span>
+        <div className="flex justify-between items-center text-sm">
+          <span className="text-gray-700 font-medium">AI Processing Fee:</span>
+          <span className="font-bold text-blue-600">
+            {formatEther(aiFee)} ETH
+          </span>
         </div>
       </div>
 
@@ -178,7 +189,7 @@ export function DepositForm() {
       </button>
 
       {totalValue > 0 && (
-        <div className="text-sm text-gray-600 text-center">
+        <div className="text-sm text-gray-700 text-center font-medium">
           AI will analyze your collateral and determine the optimal minting
           ratio
         </div>

@@ -15,7 +15,7 @@ export function SystemStats() {
     {
       label: 'Total AIUSD Supply',
       value: totalSupply
-        ? `${formatTokenAmount(totalSupply)} AIUSD`
+        ? `${formatTokenAmount(totalSupply, 18, 4)} AIUSD`
         : '0 AIUSD',
       icon: '💰',
       color: 'text-green-600',

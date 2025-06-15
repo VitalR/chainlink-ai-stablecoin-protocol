@@ -54,6 +54,7 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
     event EmergencyWithdrawal(address indexed user, uint256 indexed requestId, uint256 timestamp);
     event TokenAdded(address indexed token, uint256 priceUSD, uint8 decimals);
     event TokenPriceUpdated(address indexed token, uint256 newPriceUSD);
+    event ControllerUpdated(address indexed oldController, address indexed newController);
 
     /// @notice Custom errors
     error TokenNotSupported();
@@ -319,6 +320,15 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
 
         supportedTokens[token].priceUSD = newPriceUSD;
         emit TokenPriceUpdated(token, newPriceUSD);
+    }
+
+    /// @notice Update the AI controller address (owner only)
+    /// @param newController Address of the new AI controller
+    function updateController(address newController) external onlyOwner {
+        if (newController == address(0)) revert ZeroAddress();
+        address oldController = address(aiController);
+        aiController = IAIController(newController);
+        emit ControllerUpdated(oldController, newController);
     }
 
     /// @notice View functions

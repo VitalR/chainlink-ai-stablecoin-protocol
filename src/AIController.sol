@@ -662,16 +662,23 @@ contract AIController is OwnedThreeStep, AIOracleCallbackReceiver {
 
     function updateOracleFee(uint256 newOracleFee) external onlyOwner {
         oracleFee = newOracleFee;
+        emit OracleFeeUpdated(newOracleFee);
     }
 
     function updateFlatFee(uint256 newFee) external onlyOwner {
         flatFee = newFee;
     }
 
+    /// @notice Update prompt template (owner only)
+    /// @param newTemplate New prompt template
     function updatePromptTemplate(string calldata newTemplate) external onlyOwner {
-        if (bytes(newTemplate).length == 0 || bytes(newTemplate).length > 200) revert InvalidPromptTemplate();
+        if (bytes(newTemplate).length == 0) revert InvalidPromptTemplate();
         promptTemplate = newTemplate;
     }
+
+    /// @notice Events for oracle updates
+    event OracleUpdated(address indexed newOracle);
+    event OracleFeeUpdated(uint256 newFee);
 
     /// @notice Utility functions (same as original)
     function _createPrompt(bytes memory basketData, uint256 collateralValue) internal view returns (string memory) {

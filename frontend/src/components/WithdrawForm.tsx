@@ -88,7 +88,7 @@ export function WithdrawForm({
     if (!withdrawAmount || parseFloat(withdrawAmount) <= 0 || !aiusdMinted)
       return 0;
     const amount = parseFloat(withdrawAmount);
-    const minted = parseFloat(formatTokenAmount(aiusdMinted));
+    const minted = parseFloat(formatTokenAmount(aiusdMinted, 18, 4));
     if (minted === 0) return 0;
     return (amount / minted) * 100;
   };
@@ -123,13 +123,13 @@ export function WithdrawForm({
           <span>
             Available:{' '}
             <span className="font-medium">
-              {formatTokenAmount(aiusdBalance)} AIUSD
+              {formatTokenAmount(aiusdBalance, 18, 4)} AIUSD
             </span>
           </span>
           <span>
             Max:{' '}
             <span className="font-medium">
-              {formatTokenAmount(maxWithdrawable)} AIUSD
+              {formatTokenAmount(maxWithdrawable, 18, 4)} AIUSD
             </span>
           </span>
         </div>
