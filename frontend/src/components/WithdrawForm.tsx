@@ -85,9 +85,11 @@ export function WithdrawForm({
   };
 
   const calculateWithdrawRatio = () => {
-    if (!withdrawAmount || parseFloat(withdrawAmount) <= 0) return 0;
+    if (!withdrawAmount || parseFloat(withdrawAmount) <= 0 || !aiusdMinted)
+      return 0;
     const amount = parseFloat(withdrawAmount);
     const minted = parseFloat(formatTokenAmount(aiusdMinted));
+    if (minted === 0) return 0;
     return (amount / minted) * 100;
   };
 
@@ -104,7 +106,7 @@ export function WithdrawForm({
             placeholder="0.0"
             value={withdrawAmount}
             onChange={(e) => setWithdrawAmount(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg font-medium bg-white shadow-sm text-gray-900 placeholder-gray-400"
             step="any"
             max={formatTokenAmount(maxWithdrawable)}
           />
@@ -112,34 +114,48 @@ export function WithdrawForm({
             onClick={() =>
               setWithdrawAmount(formatTokenAmount(maxWithdrawable))
             }
-            className="absolute right-2 top-2 text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded hover:bg-blue-200"
+            className="absolute right-3 top-3 text-sm bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 font-medium"
           >
             MAX
           </button>
         </div>
-        <div className="flex justify-between text-xs text-gray-500 mt-1">
-          <span>Available: {formatTokenAmount(aiusdBalance)} AIUSD</span>
-          <span>Max: {formatTokenAmount(maxWithdrawable)} AIUSD</span>
+        <div className="flex justify-between text-sm text-gray-600 mt-2">
+          <span>
+            Available:{' '}
+            <span className="font-medium">
+              {formatTokenAmount(aiusdBalance)} AIUSD
+            </span>
+          </span>
+          <span>
+            Max:{' '}
+            <span className="font-medium">
+              {formatTokenAmount(maxWithdrawable)} AIUSD
+            </span>
+          </span>
         </div>
       </div>
 
       {/* Withdrawal Preview */}
       {withdrawAmount && parseFloat(withdrawAmount) > 0 && (
-        <div className="bg-gray-50 rounded-lg p-3">
-          <div className="text-sm text-gray-600 mb-2">Withdrawal Preview:</div>
-          <div className="space-y-1 text-sm">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="text-sm font-medium text-blue-800 mb-3">
+            Withdrawal Preview:
+          </div>
+          <div className="space-y-2 text-sm">
             <div className="flex justify-between">
-              <span>AIUSD to burn:</span>
-              <span className="font-medium">{withdrawAmount} AIUSD</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Collateral ratio:</span>
-              <span className="font-medium">
-                {calculateWithdrawRatio().toFixed(1)}%
+              <span className="text-gray-700">AIUSD to burn:</span>
+              <span className="font-semibold text-gray-900">
+                {parseFloat(withdrawAmount).toFixed(4)} AIUSD
               </span>
             </div>
-            <div className="text-xs text-gray-500 mt-2">
-              You will receive proportional amounts of all deposited tokens
+            <div className="flex justify-between">
+              <span className="text-gray-700">Withdrawal ratio:</span>
+              <span className="font-semibold text-blue-600">
+                {calculateWithdrawRatio().toFixed(2)}%
+              </span>
+            </div>
+            <div className="text-xs text-blue-700 mt-3 p-2 bg-blue-100 rounded">
+              💡 You will receive proportional amounts of all deposited tokens
             </div>
           </div>
         </div>

@@ -21,6 +21,7 @@ export function UserPosition() {
     data: position,
     isLoading,
     error,
+    refetch: refetchPosition,
   } = useReadContract({
     address: CONTRACTS.AI_VAULT,
     abi: AI_VAULT_ABI,
@@ -29,12 +30,17 @@ export function UserPosition() {
   });
 
   // Read AIUSD balance
-  const { data: aiusdBalance } = useReadContract({
+  const { data: aiusdBalance, refetch: refetchAiusdBalance } = useReadContract({
     address: CONTRACTS.AI_STABLECOIN,
     abi: AI_STABLECOIN_ABI,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
-  }) as { data: bigint | undefined };
+  }) as { data: bigint | undefined; refetch: () => void };
+
+  // Function to refresh all data
+  const refreshData = async () => {
+    await Promise.all([refetchPosition(), refetchAiusdBalance()]);
+  };
 
   // Debug logging
   console.log('UserPosition Debug:', {
@@ -168,10 +174,7 @@ export function UserPosition() {
               ratio...
             </p>
           </div>
-          <ManualProcessing
-            requestId={requestId}
-            onSuccess={() => window.location.reload()}
-          />
+          <ManualProcessing requestId={requestId} onSuccess={refreshData} />
         </div>
       ) : (
         <div className="bg-green-50 border border-green-200 rounded-lg p-4">
@@ -263,7 +266,7 @@ export function UserPosition() {
                 aiusdBalance={aiusdBalance || BigInt(0)}
                 onSuccess={() => {
                   setShowWithdraw(false);
-                  window.location.reload();
+                  refreshData();
                 }}
               />
             </div>
