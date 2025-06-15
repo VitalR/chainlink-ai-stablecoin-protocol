@@ -64,18 +64,23 @@ export default function Home() {
             </div>
           </div>
         ) : (
-          <div className="text-center py-12">
-            <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md mx-auto">
-              <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-white text-2xl">🔗</span>
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="text-center py-12">
+              <div className="bg-white rounded-2xl shadow-xl p-12 max-w-lg mx-auto">
+                <div className="w-20 h-20 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <span className="text-white text-3xl">🔗</span>
+                </div>
+                <h3 className="text-2xl font-bold text-gray-900 mb-3">
+                  Connect Your Wallet
+                </h3>
+                <p className="text-gray-600 mb-8 text-lg">
+                  Connect your wallet to start using AI Stablecoin and
+                  experience intelligent collateral management
+                </p>
+                <div className="flex justify-center">
+                  <ConnectButton />
+                </div>
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                Connect Your Wallet
-              </h3>
-              <p className="text-gray-600 mb-6">
-                Connect your wallet to start using AI Stablecoin
-              </p>
-              <ConnectButton />
             </div>
           </div>
         )}

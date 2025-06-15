@@ -3,12 +3,12 @@ import { sepolia } from 'wagmi/chains';
 
 // Contract addresses from deployment
 export const CONTRACTS = {
-  AI_STABLECOIN: '0xb4036672FE9f82ff0B9149beBD6721538e085ffa',
-  AI_CONTROLLER: '0x0C8516a5B5465547746DFB0cA80897E456Cc68C8',
-  AI_VAULT: '0x0d8a34dCD87b50291c4F7b0706Bfde71Abd1aFf2',
-  MOCK_DAI: '0x68194a729C2450ad26072b3D33ADaCbcef39D574',
-  MOCK_WETH: '0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14',
-  MOCK_WBTC: '0x29f2D40B0605204364af54EC677bD022dA425d03',
+  AI_STABLECOIN: '0xb4036672FE9f82ff0B9149beBD6721538e085ffa' as `0x${string}`,
+  AI_CONTROLLER: '0x0C8516a5B5465547746DFB0cA80897E456Cc68C8' as `0x${string}`,
+  AI_VAULT: '0x0d8a34dCD87b50291c4F7b0706Bfde71Abd1aFf2' as `0x${string}`,
+  MOCK_DAI: '0xF19061331751efd44eCd2E9f49903b7D68651368' as `0x${string}`,
+  MOCK_WETH: '0x7f4eb26422b35D3AA5a72D7711aD12905bb69F59' as `0x${string}`,
+  MOCK_WBTC: '0x4a098CaCd639aE0CC70F6f03d4A01608286b155d' as `0x${string}`,
 } as const;
 
 // Token configurations
@@ -38,25 +38,143 @@ export const config = getDefaultConfig({
 
 // Contract ABIs
 export const AI_CONTROLLER_ABI = [
-  'function estimateTotalFee() external view returns (uint256)',
-  'function getRequestInfo(uint256 requestId) external view returns (tuple(address user, address vault, bytes basketData, uint256 collateralValue, uint256 timestamp, bool processed))',
+  {
+    inputs: [],
+    name: 'estimateTotalFee',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'uint256', name: 'requestId', type: 'uint256' }],
+    name: 'getRequestInfo',
+    outputs: [
+      {
+        components: [
+          { internalType: 'address', name: 'user', type: 'address' },
+          { internalType: 'address', name: 'vault', type: 'address' },
+          { internalType: 'bytes', name: 'basketData', type: 'bytes' },
+          { internalType: 'uint256', name: 'collateralValue', type: 'uint256' },
+          { internalType: 'uint256', name: 'timestamp', type: 'uint256' },
+          { internalType: 'bool', name: 'processed', type: 'bool' },
+        ],
+        internalType: 'struct RequestInfo',
+        name: '',
+        type: 'tuple',
+      },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
 ] as const;
 
 export const AI_VAULT_ABI = [
-  'function depositBasket(address[] calldata tokens, uint256[] calldata amounts) external payable',
-  'function getPosition(address user) external view returns (tuple(address[] tokens, uint256[] amounts, uint256 totalValue, uint256 aiusdMinted, uint256 collateralRatio, uint256 requestId, bool hasPendingRequest))',
+  {
+    inputs: [
+      { internalType: 'address[]', name: 'tokens', type: 'address[]' },
+      { internalType: 'uint256[]', name: 'amounts', type: 'uint256[]' },
+    ],
+    name: 'depositBasket',
+    outputs: [],
+    stateMutability: 'payable',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'address', name: 'user', type: 'address' }],
+    name: 'getPosition',
+    outputs: [
+      { internalType: 'address[]', name: 'tokens', type: 'address[]' },
+      { internalType: 'uint256[]', name: 'amounts', type: 'uint256[]' },
+      { internalType: 'uint256', name: 'totalValueUSD', type: 'uint256' },
+      { internalType: 'uint256', name: 'aiusdMinted', type: 'uint256' },
+      { internalType: 'uint256', name: 'collateralRatio', type: 'uint256' },
+      { internalType: 'uint256', name: 'requestId', type: 'uint256' },
+      { internalType: 'bool', name: 'hasPendingRequest', type: 'bool' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'uint256', name: 'amount', type: 'uint256' }],
+    name: 'withdrawCollateral',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
 ] as const;
 
 export const ERC20_ABI = [
-  'function balanceOf(address owner) external view returns (uint256)',
-  'function approve(address spender, uint256 amount) external returns (bool)',
-  'function allowance(address owner, address spender) external view returns (uint256)',
-  'function symbol() external view returns (string)',
+  {
+    inputs: [{ internalType: 'address', name: 'owner', type: 'address' }],
+    name: 'balanceOf',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'spender', type: 'address' },
+      { internalType: 'uint256', name: 'amount', type: 'uint256' },
+    ],
+    name: 'approve',
+    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'owner', type: 'address' },
+      { internalType: 'address', name: 'spender', type: 'address' },
+    ],
+    name: 'allowance',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'symbol',
+    outputs: [{ internalType: 'string', name: '', type: 'string' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
 ] as const;
 
 export const AI_STABLECOIN_ABI = [
-  'function balanceOf(address owner) external view returns (uint256)',
-  'function totalSupply() external view returns (uint256)',
+  {
+    inputs: [{ internalType: 'address', name: 'owner', type: 'address' }],
+    name: 'balanceOf',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'totalSupply',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'spender', type: 'address' },
+      { internalType: 'uint256', name: 'amount', type: 'uint256' },
+    ],
+    name: 'approve',
+    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'owner', type: 'address' },
+      { internalType: 'address', name: 'spender', type: 'address' },
+    ],
+    name: 'allowance',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
 ] as const;
 
 // Utility functions
@@ -68,7 +186,7 @@ export function formatTokenAmount(
   const quotient = amount / divisor;
   const remainder = amount % divisor;
 
-  if (remainder === 0n) return quotient.toString();
+  if (remainder === BigInt(0)) return quotient.toString();
 
   const remainderStr = remainder.toString().padStart(decimals, '0');
   const trimmed = remainderStr.replace(/0+$/, '');

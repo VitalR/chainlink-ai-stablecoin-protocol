@@ -9,7 +9,7 @@ export function SystemStats() {
     address: CONTRACTS.AI_STABLECOIN,
     abi: AI_STABLECOIN_ABI,
     functionName: 'totalSupply',
-  });
+  }) as { data: bigint | undefined };
 
   const stats = [
     {

@@ -30,7 +30,7 @@ export function DepositForm() {
     address: CONTRACTS.AI_CONTROLLER,
     abi: AI_CONTROLLER_ABI,
     functionName: 'estimateTotalFee',
-  });
+  }) as { data: bigint | undefined };
 
   // Read token balances
   const { data: daiBalance } = useReadContract({
@@ -38,21 +38,21 @@ export function DepositForm() {
     abi: ERC20_ABI,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
-  });
+  }) as { data: bigint | undefined };
 
   const { data: wethBalance } = useReadContract({
     address: CONTRACTS.MOCK_WETH,
     abi: ERC20_ABI,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
-  });
+  }) as { data: bigint | undefined };
 
   const { data: wbtcBalance } = useReadContract({
     address: CONTRACTS.MOCK_WBTC,
     abi: ERC20_ABI,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
-  });
+  }) as { data: bigint | undefined };
 
   const handleTokenChange = (token: string, value: string) => {
     setSelectedTokens((prev) => ({ ...prev, [token]: value }));
@@ -73,13 +73,13 @@ export function DepositForm() {
     if (!address) return;
 
     // Prepare tokens and amounts arrays
-    const tokens: string[] = [];
+    const tokens: `0x${string}`[] = [];
     const amounts: bigint[] = [];
 
     Object.entries(selectedTokens).forEach(([token, amount]) => {
       if (amount && parseFloat(amount) > 0) {
         const tokenConfig = TOKENS[token as keyof typeof TOKENS];
-        tokens.push(tokenConfig.address);
+        tokens.push(tokenConfig.address as `0x${string}`);
         amounts.push(parseTokenAmount(amount, tokenConfig.decimals));
       }
     });
