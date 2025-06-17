@@ -8,87 +8,87 @@ import { SepoliaConfig } from "config/SepoliaConfig.sol";
 /// @title ProcessManualRequest - Process stuck AI requests manually
 contract ProcessManualRequestScript is Script {
     AIController controller;
-    
+
     function setUp() public {
         controller = AIController(SepoliaConfig.AI_CONTROLLER);
     }
-    
+
     /// @notice Request manual processing (user calls this first)
     function requestManualProcessing(uint256 requestId) public {
         vm.startBroadcast();
-        
+
         console.log("=== Requesting Manual Processing ===");
         console.log("Request ID:", requestId);
-        
+
         controller.requestManualProcessing(requestId);
-        
+
         console.log("Manual processing requested successfully");
-        
+
         vm.stopBroadcast();
     }
-    
+
     /// @notice Process with force default mint strategy (owner/authorized processor)
     function processWithDefaultMint(uint256 requestId) public {
         vm.startBroadcast();
-        
+
         console.log("=== Processing with Default Mint ===");
         console.log("Request ID:", requestId);
-        
+
         // Check options first
-        (bool canProcess, AIController.ManualStrategy[] memory strategies, uint256 timeUntilEmergency) = 
+        (bool canProcess, AIController.ManualStrategy[] memory strategies, uint256 timeUntilEmergency) =
             controller.getManualProcessingOptions(requestId);
-        
+
         console.log("Can process:", canProcess);
         console.log("Available strategies:", strategies.length);
         console.log("Time until emergency:", timeUntilEmergency);
-        
+
         require(canProcess, "Manual processing not available yet");
-        
+
         // Use FORCE_DEFAULT_MINT strategy
         controller.processWithOffChainAI(requestId, "", AIController.ManualStrategy.FORCE_DEFAULT_MINT);
-        
+
         console.log("Manual processing completed with default mint strategy");
-        
+
         vm.stopBroadcast();
     }
-    
+
     /// @notice Emergency withdrawal (user calls this)
     function emergencyWithdraw(uint256 requestId) public {
         vm.startBroadcast();
-        
+
         console.log("=== Emergency Withdrawal ===");
         console.log("Request ID:", requestId);
-        
+
         controller.emergencyWithdraw(requestId);
-        
+
         console.log("Emergency withdrawal completed");
-        
+
         vm.stopBroadcast();
     }
-    
+
     /// @notice Process with simulated AI response (owner/authorized processor)
     function processWithAIResponse(uint256 requestId, string memory aiResponse) public {
         vm.startBroadcast();
-        
+
         console.log("=== Processing with AI Response ===");
         console.log("Request ID:", requestId);
         console.log("AI Response:", aiResponse);
-        
+
         controller.processWithOffChainAI(requestId, aiResponse, AIController.ManualStrategy.PROCESS_WITH_OFFCHAIN_AI);
-        
+
         console.log("Manual processing completed with AI response");
-        
+
         vm.stopBroadcast();
     }
-    
+
     function run() public {
         console.log("Manual Request Processor");
         console.log("========================");
-        
+
         // Get request ID from environment or default to 1
         uint256 requestId = vm.envOr("REQUEST_ID", uint256(1));
         string memory action = vm.envOr("ACTION", string("request"));
-        
+
         if (keccak256(bytes(action)) == keccak256(bytes("request"))) {
             requestManualProcessing(requestId);
         } else if (keccak256(bytes(action)) == keccak256(bytes("default"))) {
@@ -103,4 +103,4 @@ contract ProcessManualRequestScript is Script {
             revert("Invalid action");
         }
     }
-} 
+}

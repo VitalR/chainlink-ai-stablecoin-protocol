@@ -29,38 +29,18 @@ contract DeployRiskOracleControllerScript is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         // Deploy RiskOracleController with Chainlink Functions
-        controller = new RiskOracleController(
-            functionsRouter,
-            donId,
-            gasLimit,
-            subscriptionId
-        );
+        controller = new RiskOracleController(functionsRouter, donId, gasLimit, subscriptionId);
 
         // Configure price feeds
-        controller.setPriceFeeds(
-            "ETH",
-            SepoliaConfig.ETH_USD_PRICE_FEED
-        );
-        
-        controller.setPriceFeeds(
-            "WBTC",
-            SepoliaConfig.BTC_USD_PRICE_FEED
-        );
-        
-        controller.setPriceFeeds(
-            "LINK",
-            SepoliaConfig.LINK_USD_PRICE_FEED
-        );
-        
-        controller.setPriceFeeds(
-            "DAI",
-            SepoliaConfig.DAI_USD_PRICE_FEED
-        );
-        
-        controller.setPriceFeeds(
-            "USDC",
-            SepoliaConfig.USDC_USD_PRICE_FEED
-        );
+        controller.setPriceFeeds("ETH", SepoliaConfig.ETH_USD_PRICE_FEED);
+
+        controller.setPriceFeeds("WBTC", SepoliaConfig.BTC_USD_PRICE_FEED);
+
+        controller.setPriceFeeds("LINK", SepoliaConfig.LINK_USD_PRICE_FEED);
+
+        controller.setPriceFeeds("DAI", SepoliaConfig.DAI_USD_PRICE_FEED);
+
+        controller.setPriceFeeds("USDC", SepoliaConfig.USDC_USD_PRICE_FEED);
 
         console.log("==RiskOracleController deployed at=%s", address(controller));
         console.log("==Functions Router=%s", functionsRouter);
@@ -78,4 +58,6 @@ contract DeployRiskOracleControllerScript is Script {
 // 1. First create Chainlink Functions subscription at https://functions.chain.link
 // 2. Update CHAINLINK_SUBSCRIPTION_ID in SepoliaConfig.sol
 // 3. Run deployment:
-// source .env && forge script script/02_DeployRiskOracleController.s.sol:DeployRiskOracleControllerScript --rpc-url $SEPOLIA_RPC_URL --broadcast --private-key $DEPLOYER_PRIVATE_KEY --etherscan-api-key $ETHERSCAN_API_KEY --gas-limit $GAS_LIMIT --gas-price $GAS_PRICE --verify -vvvv 
+// source .env && forge script script/02_DeployRiskOracleController.s.sol:DeployRiskOracleControllerScript --rpc-url
+// $SEPOLIA_RPC_URL --broadcast --private-key $DEPLOYER_PRIVATE_KEY --etherscan-api-key $ETHERSCAN_API_KEY --gas-limit
+// $GAS_LIMIT --gas-price $GAS_PRICE --verify -vvvv
