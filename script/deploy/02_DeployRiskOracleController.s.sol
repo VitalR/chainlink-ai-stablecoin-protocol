@@ -19,36 +19,44 @@ contract DeployRiskOracleControllerScript is Script {
         // Chainlink Functions configuration
         address functionsRouter = SepoliaConfig.CHAINLINK_FUNCTIONS_ROUTER;
         bytes32 donId = SepoliaConfig.CHAINLINK_DON_ID;
-        uint32 gasLimit = SepoliaConfig.CHAINLINK_GAS_LIMIT;
         uint64 subscriptionId = SepoliaConfig.CHAINLINK_SUBSCRIPTION_ID;
-
-        require(functionsRouter != address(0), "Functions router address not set");
-        require(donId != bytes32(0), "DON ID not set");
-        require(subscriptionId > 0, "Subscription ID not set - create Functions subscription first");
+        uint32 gasLimit = SepoliaConfig.CHAINLINK_GAS_LIMIT;
+        string memory aiSourceCode = "return '150,75';"; // Simple AI response for testing
 
         vm.startBroadcast(deployerPrivateKey);
 
-        // Deploy RiskOracleController with Chainlink Functions
-        controller = new RiskOracleController(functionsRouter, donId, gasLimit, subscriptionId);
+        console.log("=== Deploying RiskOracleController ===");
+        console.log("Functions Router:", functionsRouter);
+        console.log("DON ID:", vm.toString(donId));
+        console.log("Subscription ID:", subscriptionId);
+        console.log("Gas Limit:", gasLimit);
 
-        // Configure price feeds
-        controller.setPriceFeeds("ETH", SepoliaConfig.ETH_USD_PRICE_FEED);
+        // Deploy RiskOracleController with correct parameter order
+        controller = new RiskOracleController(functionsRouter, donId, subscriptionId, aiSourceCode);
 
-        controller.setPriceFeeds("WBTC", SepoliaConfig.BTC_USD_PRICE_FEED);
+        // Setup price feeds using arrays
+        string[] memory tokens = new string[](5);
+        address[] memory feeds = new address[](5);
 
-        controller.setPriceFeeds("LINK", SepoliaConfig.LINK_USD_PRICE_FEED);
+        tokens[0] = "ETH";
+        feeds[0] = SepoliaConfig.ETH_USD_PRICE_FEED;
 
-        controller.setPriceFeeds("DAI", SepoliaConfig.DAI_USD_PRICE_FEED);
+        tokens[1] = "WBTC";
+        feeds[1] = SepoliaConfig.BTC_USD_PRICE_FEED;
 
-        controller.setPriceFeeds("USDC", SepoliaConfig.USDC_USD_PRICE_FEED);
+        tokens[2] = "LINK";
+        feeds[2] = SepoliaConfig.LINK_USD_PRICE_FEED;
 
-        console.log("==RiskOracleController deployed at=%s", address(controller));
-        console.log("==Functions Router=%s", functionsRouter);
-        console.log("==DON ID=%s", vm.toString(donId));
-        console.log("==Gas Limit=%s", gasLimit);
-        console.log("==Subscription ID=%s", subscriptionId);
-        console.log("==ETH/USD Feed=%s", SepoliaConfig.ETH_USD_PRICE_FEED);
-        console.log("==BTC/USD Feed=%s", SepoliaConfig.BTC_USD_PRICE_FEED);
+        tokens[3] = "DAI";
+        feeds[3] = SepoliaConfig.DAI_USD_PRICE_FEED;
+
+        tokens[4] = "USDC";
+        feeds[4] = SepoliaConfig.USDC_USD_PRICE_FEED;
+
+        controller.setPriceFeeds(tokens, feeds);
+
+        console.log("RiskOracleController deployed at:", address(controller));
+        console.log("Price feeds configured for 5 tokens");
 
         vm.stopBroadcast();
     }

@@ -3,28 +3,37 @@ import { sepolia } from 'wagmi/chains';
 
 // Contract addresses from deployment
 export const CONTRACTS = {
-  AI_STABLECOIN: '0xb4036672FE9f82ff0B9149beBD6721538e085ffa' as `0x${string}`,
-  AI_CONTROLLER: '0xdE56263d5d478E0926da56375CD9927d5EE3af72' as `0x${string}`,
-  AI_VAULT: '0x3b8Fd1cB957B96e9082c270938B1C1C083e3fb94' as `0x${string}`,
-  MOCK_DAI: '0xF19061331751efd44eCd2E9f49903b7D68651368' as `0x${string}`,
-  MOCK_WETH: '0x7f4eb26422b35D3AA5a72D7711aD12905bb69F59' as `0x${string}`,
-  MOCK_WBTC: '0x4a098CaCd639aE0CC70F6f03d4A01608286b155d' as `0x${string}`,
+  AIUSD: '0x5FbDB2315678afecb367f032d93F642f64180aa3' as `0x${string}`,
+  COLLATERAL_VAULT:
+    '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512' as `0x${string}`,
+  RISK_ORACLE_CONTROLLER:
+    '0xdE56263d5d478E0926da56375CD9927d5EE3af72' as `0x${string}`,
+  WETH: '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0' as `0x${string}`,
+  DAI: '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9' as `0x${string}`,
+  USDC: '0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9' as `0x${string}`,
+  WBTC: '0x4a098CaCd639aE0CC70F6f03d4A01608286b155d' as `0x${string}`,
 } as const;
 
 // Token configurations
 export const TOKENS = {
-  DAI: { address: CONTRACTS.MOCK_DAI, symbol: 'DAI', decimals: 18, price: 1 },
+  DAI: { address: CONTRACTS.DAI, symbol: 'DAI', decimals: 18, price: 1 },
   WETH: {
-    address: CONTRACTS.MOCK_WETH,
+    address: CONTRACTS.WETH,
     symbol: 'WETH',
     decimals: 18,
     price: 2000,
   },
   WBTC: {
-    address: CONTRACTS.MOCK_WBTC,
+    address: CONTRACTS.WBTC,
     symbol: 'WBTC',
-    decimals: 18,
+    decimals: 8,
     price: 50000,
+  },
+  USDC: {
+    address: CONTRACTS.USDC,
+    symbol: 'USDC',
+    decimals: 6,
+    price: 1,
   },
 } as const;
 
@@ -37,7 +46,7 @@ export const config = getDefaultConfig({
 });
 
 // Contract ABIs
-export const AI_CONTROLLER_ABI = [
+export const RISK_ORACLE_CONTROLLER_ABI = [
   {
     inputs: [],
     name: 'estimateTotalFee',
@@ -68,7 +77,7 @@ export const AI_CONTROLLER_ABI = [
   },
 ] as const;
 
-export const AI_VAULT_ABI = [
+export const COLLATERAL_VAULT_ABI = [
   {
     inputs: [
       { internalType: 'address[]', name: 'tokens', type: 'address[]' },

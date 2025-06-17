@@ -16,9 +16,9 @@ The AI Stablecoin system uses artificial intelligence to analyze collateral bask
 ### Core Components
 
 1. **AIStablecoin (AIUSD)** - The stablecoin token with vault-based minting
-2. **AICollateralVaultCallbackImproved** - Manages collateral deposits and positions
-3. **AIControllerCallbackImproved** - Handles ORA integration and manual processing
-4. **MockAIOracleImproved** - Testing oracle that simulates ORA behavior
+2. **CollateralVault** - Manages collateral deposits and positions
+3. **RiskOracleController** - Handles Chainlink Functions integration and manual processing
+4. **MockChainlinkFunctionsRouter** - Testing router that simulates Chainlink Functions behavior
 
 ### Improved Callback System Features
 
@@ -183,29 +183,36 @@ controller.resetFailureCount();
 # Build contracts
 forge build
 
-# Run improved callback system tests
-./test/run_improved_tests.sh
+# Run Chainlink Functions integration tests
+./test/utils/run_improved_tests.sh
+
+# Run E2E workflow tests
+./test/utils/run_tests.sh
 
 # Run all tests
 forge test
 ```
 
+### Test Organization
+
+- **Unit Tests**: Individual contract functionality (`RiskOracleController.t.sol`)
+- **E2E Tests**: Complete user workflows (`AIStablecoinE2E.t.sol`)
+- **Mock Contracts**: Testing infrastructure (`test/mocks/`)
+- **Test Utils**: Organized scripts (`test/utils/`)
+
 ### Test Coverage
 
 The test suite covers:
 
-- ✅ Normal ORA callback flow
-- ✅ Manual processing request
-- ✅ Off-chain AI processing
-- ✅ Force default mint
-- ✅ Emergency withdrawal (processor)
-- ✅ Emergency withdrawal (user)
-- ✅ Emergency withdrawal (vault)
-- ✅ Manual processing candidates
-- ✅ Manual processing options
-- ✅ Unauthorized access protection
+- ✅ Chainlink Functions fee estimation and request submission
+- ✅ Chainlink Functions callback processing and failure handling
+- ✅ Manual processing workflows after timeout
+- ✅ Emergency withdrawal functionality
+- ✅ Force default mint strategy
 - ✅ Circuit breaker functionality
-- ✅ AI response parsing
+- ✅ Authorization and security controls
+- ✅ Complete deposit and withdrawal flows
+- ✅ Multi-user scenarios and edge cases
 
 ## 🚀 Deployment
 

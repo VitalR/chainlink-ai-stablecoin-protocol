@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import { FunctionsClient } from "lib/chainlink/contracts/src/v0.8/functions/dev/v1_0_0/FunctionsClient.sol";
-import { FunctionsRequest } from "lib/chainlink/contracts/src/v0.8/functions/dev/v1_0_0/libraries/FunctionsRequest.sol";
-import { AggregatorV3Interface } from "lib/chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
-import "./interfaces/IAIStablecoin.sol";
-import "lib/solbase/src/auth/OwnedThreeStep.sol";
+import { AggregatorV3Interface } from "@chainlink/contracts/shared/interfaces/AggregatorV3Interface.sol";
+import { FunctionsClient } from "@chainlink/functions/v1_3_0/FunctionsClient.sol";
+import { FunctionsRequest } from "@chainlink/functions/v1_0_0/libraries/FunctionsRequest.sol";
+import { OwnedThreeStep } from "@solbase/auth/OwnedThreeStep.sol";
 
 /// @title RiskOracleController - Chainlink Functions AI Risk Assessment Controller
 /// @notice Handles AI-powered risk assessment using Chainlink Functions for optimal collateral ratios
@@ -250,7 +249,7 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
     /// @param requestId The Chainlink request ID
     /// @param response The AI response from Chainlink Functions
     /// @param err Any error that occurred
-    function fulfillRequest(bytes32 requestId, bytes memory response, bytes memory err) internal override {
+    function _fulfillRequest(bytes32 requestId, bytes memory response, bytes memory err) internal override {
         RequestInfo storage request = requests[requestId];
 
         if (request.internalRequestId == 0) {

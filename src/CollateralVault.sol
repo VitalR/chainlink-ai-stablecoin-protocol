@@ -6,8 +6,8 @@ import "lib/solbase/src/auth/OwnedThreeStep.sol";
 import "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/utils/ReentrancyGuard.sol";
 
-/// @title IAIController Interface
-interface IAIController {
+/// @title IRiskOracleController Interface
+interface IRiskOracleController {
     function submitAIRequest(address user, bytes calldata basketData, uint256 collateralValue)
         external
         payable
@@ -16,11 +16,11 @@ interface IAIController {
 
 /// @title CollateralVault - Enhanced Collateral Management with Manual Processing
 /// @notice Manages collateral deposits and AI-driven minting with improved error handling
-/// @dev Integrates with AIController for AI processing and manual recovery mechanisms
+/// @dev Integrates with RiskOracleController for AI processing and manual recovery mechanisms
 contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
     /// @notice Core contract interfaces
     IAIStablecoin public aiusd;
-    IAIController public aiController;
+    IRiskOracleController public riskOracleController;
 
     /// @notice Token information
     struct TokenInfo {
@@ -67,14 +67,14 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
     error ZeroValueBasket();
     error NoPendingRequest();
     error RequestIdMismatch();
-    error OnlyAIController();
+    error OnlyRiskOracleController();
     error ZeroAmount();
     error InvalidPrice();
     error ZeroAddress();
 
     /// @notice Modifiers
-    modifier onlyAIController() {
-        if (msg.sender != address(aiController)) revert OnlyAIController();
+    modifier onlyRiskOracleController() {
+        if (msg.sender != address(riskOracleController)) revert OnlyRiskOracleController();
         _;
     }
 
@@ -84,9 +84,9 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
     }
 
     /// @notice Initialize the vault
-    constructor(address _aiusd, address _aiController) OwnedThreeStep(msg.sender) {
+    constructor(address _aiusd, address _riskOracleController) OwnedThreeStep(msg.sender) {
         aiusd = IAIStablecoin(_aiusd);
-        aiController = IAIController(_aiController);
+        riskOracleController = IRiskOracleController(_riskOracleController);
     }
 
     /// @notice Receive function to accept ETH refunds
@@ -139,7 +139,8 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
         address originalUser = msg.sender;
         uint256 balanceBefore = address(this).balance - msg.value;
 
-        uint256 requestId = aiController.submitAIRequest{ value: msg.value }(msg.sender, basketData, totalValueUSD);
+        uint256 requestId =
+            riskOracleController.submitAIRequest{ value: msg.value }(msg.sender, basketData, totalValueUSD);
 
         // Update position with request ID
         positions[msg.sender].requestId = requestId;
@@ -155,7 +156,7 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
     }
 
     /// @notice Processes the AI assessment callback and mints AIUSD
-    /// @dev Called by AI controller when assessment is complete
+    /// @dev Called by RiskOracleController when assessment is complete
     /// @param user Address of the user who deposited collateral
     /// @param requestId ID of the completed AI assessment request
     /// @param mintAmount Amount of AIUSD to mint
@@ -163,7 +164,7 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
     /// @param confidence AI confidence score for the assessment
     function processAICallback(address user, uint256 requestId, uint256 mintAmount, uint256 ratio, uint256 confidence)
         external
-        onlyAIController
+        onlyRiskOracleController
     {
         Position storage position = positions[user];
         if (!position.hasPendingRequest) revert NoPendingRequest();
@@ -181,10 +182,10 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
     }
 
     /// @notice Emergency withdrawal function for stuck requests
-    /// @dev Called by AI controller when user requests emergency withdrawal
+    /// @dev Called by RiskOracleController when user requests emergency withdrawal
     /// @param user Address of the user requesting withdrawal
     /// @param requestId ID of the request to withdraw from
-    function emergencyWithdraw(address user, uint256 requestId) external onlyAIController {
+    function emergencyWithdraw(address user, uint256 requestId) external onlyRiskOracleController {
         Position storage position = positions[user];
         if (!position.hasPendingRequest) revert NoPendingRequest();
         if (position.requestId != requestId) revert RequestIdMismatch();
@@ -322,12 +323,12 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
         emit TokenPriceUpdated(token, newPriceUSD);
     }
 
-    /// @notice Update the AI controller address (owner only)
-    /// @param newController Address of the new AI controller
+    /// @notice Update the RiskOracleController address (owner only)
+    /// @param newController Address of the new RiskOracleController
     function updateController(address newController) external onlyOwner {
         if (newController == address(0)) revert ZeroAddress();
-        address oldController = address(aiController);
-        aiController = IAIController(newController);
+        address oldController = address(riskOracleController);
+        riskOracleController = IRiskOracleController(newController);
         emit ControllerUpdated(oldController, newController);
     }
 

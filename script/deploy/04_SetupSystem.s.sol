@@ -4,7 +4,7 @@ pragma solidity 0.8.30;
 import "forge-std/Script.sol";
 import { AIStablecoin } from "src/AIStablecoin.sol";
 import { CollateralVault } from "src/CollateralVault.sol";
-import { AIController } from "src/AIController.sol";
+import { RiskOracleController } from "src/RiskOracleController.sol";
 import { SepoliaConfig } from "config/SepoliaConfig.sol";
 
 /// @title SetupSystem - Configure the deployed AI Stablecoin system
@@ -12,7 +12,7 @@ import { SepoliaConfig } from "config/SepoliaConfig.sol";
 contract SetupSystemScript is Script {
     AIStablecoin aiusd;
     CollateralVault vault;
-    AIController controller;
+    RiskOracleController controller;
 
     address deployerPublicKey;
     uint256 deployerPrivateKey;
@@ -23,8 +23,8 @@ contract SetupSystemScript is Script {
 
         // Initialize contracts
         aiusd = AIStablecoin(SepoliaConfig.AI_STABLECOIN);
-        vault = CollateralVault(payable(SepoliaConfig.AI_VAULT));
-        controller = AIController(SepoliaConfig.AI_CONTROLLER);
+        vault = CollateralVault(payable(SepoliaConfig.COLLATERAL_VAULT));
+        controller = RiskOracleController(SepoliaConfig.RISK_ORACLE_CONTROLLER);
     }
 
     function run() public {
@@ -83,8 +83,10 @@ contract SetupSystemScript is Script {
         console.log("AI Stablecoin:", address(aiusd));
         console.log("AI Controller:", address(controller));
         console.log("Collateral Vault:", address(vault));
-        console.log("ORA Oracle:", SepoliaConfig.ORA_ORACLE);
-        console.log("\nTest Tokens:");
+        console.log("==CONFIGURATION SUMMARY==");
+        console.log("AIUSD:", SepoliaConfig.AI_STABLECOIN);
+        console.log("COLLATERAL_VAULT:", SepoliaConfig.COLLATERAL_VAULT);
+        console.log("RISK_ORACLE_CONTROLLER:", SepoliaConfig.RISK_ORACLE_CONTROLLER);
         console.log("WETH:", SepoliaConfig.MOCK_WETH);
         console.log("WBTC:", SepoliaConfig.MOCK_WBTC);
         console.log("DAI:", SepoliaConfig.MOCK_DAI);

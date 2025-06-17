@@ -10,6 +10,7 @@ contract TestRiskOracleControllerScript is Script {
 
     function run() public {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+        address deployerAddress = vm.addr(deployerPrivateKey);
 
         vm.startBroadcast(deployerPrivateKey);
 
@@ -30,38 +31,34 @@ contract TestRiskOracleControllerScript is Script {
             console.log("Failed to get BTC price");
         }
 
-        // Test 2: Request AI risk assessment
-        console.log("\n=== Testing Chainlink Functions AI Assessment ===");
+        // Test 2: Submit AI request (this would normally be called by vault)
+        console.log("=== Testing AI Request Submission ===");
 
-        // Create a test portfolio
-        string[] memory tokens = new string[](3);
-        tokens[0] = "ETH";
-        tokens[1] = "WBTC";
-        tokens[2] = "DAI";
+        // Create test data
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(0x1); // Mock WETH
+        tokens[1] = address(0x2); // Mock DAI
 
-        uint256[] memory amounts = new uint256[](3);
-        amounts[0] = 50_000e18; // 50k USD worth of ETH
-        amounts[1] = 30_000e18; // 30k USD worth of BTC
-        amounts[2] = 20_000e18; // 20k USD worth of DAI
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 5 ether;
+        amounts[1] = 1000e18;
 
-        uint256[] memory prices = new uint256[](3);
-        prices[0] = 3500e8; // $3500 ETH
-        prices[1] = 95_000e8; // $95000 BTC
-        prices[2] = 1e8; // $1 DAI
-
-        try controller.requestRiskAssessment(tokens, amounts, prices) returns (bytes32 requestId) {
-            console.log("Risk assessment requested with ID: %s", vm.toString(requestId));
-            console.log("Check back in ~1 minute for results");
-        } catch Error(string memory reason) {
-            console.log("Failed to request risk assessment: %s", reason);
+        // Simulate vault calling the controller
+        try controller.submitAIRequest(deployerAddress, abi.encode(tokens, amounts), 10_000e18) returns (
+            uint256 requestId
+        ) {
+            console.log("AI request submitted successfully");
+            console.log("Request ID:", requestId);
         } catch {
-            console.log("Failed to request risk assessment: Unknown error");
+            console.log("AI request submission failed (expected - only vault can call)");
         }
 
-        // Test 3: Check if there are any pending requests
-        console.log("\n=== Checking System Status ===");
-        console.log("Controller address: %s", address(controller));
-        console.log("Emergency stopped: %s", controller.emergencyStop() ? "true" : "false");
+        // Test 3: Check system status
+        console.log("=== System Status ===");
+        (bool paused, uint256 failures, uint256 lastFailure, bool circuitBreakerActive) = controller.getSystemStatus();
+        console.log("Processing paused:", paused);
+        console.log("Failure count:", failures);
+        console.log("Circuit breaker active:", circuitBreakerActive);
 
         vm.stopBroadcast();
     }

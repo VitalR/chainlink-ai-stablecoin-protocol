@@ -25,13 +25,10 @@ echo "- Error cases and DeFi approvals"
 echo "- Multiple partial withdrawals"
 
 echo ""
-echo "✅ Tests completed!" 
-
+echo "✅ E2E Tests completed!" 
 
 ############################
-# Make script executable
-# chmod +x test/run_tests.sh
-
-# Run all E2E tests
-#./test/run_tests.sh
+# Usage:
+# Make script executable: chmod +x test/utils/run_tests.sh
+# Run E2E tests: ./test/utils/run_tests.sh
 ############################

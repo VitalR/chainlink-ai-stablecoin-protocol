@@ -6,9 +6,9 @@ import { parseEther, formatEther } from 'viem';
 import {
   CONTRACTS,
   TOKENS,
-  AI_VAULT_ABI,
+  RISK_ORACLE_CONTROLLER_ABI,
+  COLLATERAL_VAULT_ABI,
   ERC20_ABI,
-  AI_CONTROLLER_ABI,
   formatTokenAmount,
   parseTokenAmount,
 } from '@/lib/web3';
@@ -30,21 +30,28 @@ export function DepositForm() {
 
   // Read token balances
   const { data: daiBalance } = useReadContract({
-    address: CONTRACTS.MOCK_DAI,
+    address: CONTRACTS.DAI,
     abi: ERC20_ABI,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
   }) as { data: bigint | undefined };
 
   const { data: wethBalance } = useReadContract({
-    address: CONTRACTS.MOCK_WETH,
+    address: CONTRACTS.WETH,
     abi: ERC20_ABI,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
   }) as { data: bigint | undefined };
 
   const { data: wbtcBalance } = useReadContract({
-    address: CONTRACTS.MOCK_WBTC,
+    address: CONTRACTS.WBTC,
+    abi: ERC20_ABI,
+    functionName: 'balanceOf',
+    args: address ? [address] : undefined,
+  }) as { data: bigint | undefined };
+
+  const { data: usdcBalance } = useReadContract({
+    address: CONTRACTS.USDC,
     abi: ERC20_ABI,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
@@ -87,8 +94,8 @@ export function DepositForm() {
 
     try {
       await writeContract({
-        address: CONTRACTS.AI_VAULT,
-        abi: AI_VAULT_ABI,
+        address: CONTRACTS.COLLATERAL_VAULT,
+        abi: COLLATERAL_VAULT_ABI,
         functionName: 'depositBasket',
         args: [tokens, amounts],
         value: aiFee,
@@ -110,7 +117,9 @@ export function DepositForm() {
               ? daiBalance
               : symbol === 'WETH'
               ? wethBalance
-              : wbtcBalance;
+              : symbol === 'WBTC'
+              ? wbtcBalance
+              : usdcBalance;
 
           return (
             <div
@@ -197,4 +206,3 @@ export function DepositForm() {
     </div>
   );
 }
- 

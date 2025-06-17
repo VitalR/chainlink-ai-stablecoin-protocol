@@ -2,10 +2,11 @@
 pragma solidity 0.8.30;
 
 import "forge-std/Script.sol";
+import { IERC20 } from "@openzeppelin/token/ERC20/IERC20.sol";
+
 import { AIStablecoin } from "src/AIStablecoin.sol";
 import { CollateralVault } from "src/CollateralVault.sol";
-import { AIController } from "src/AIController.sol";
-import { IERC20 } from "@openzeppelin/token/ERC20/IERC20.sol";
+import { RiskOracleController } from "src/RiskOracleController.sol";
 import { SepoliaConfig } from "config/SepoliaConfig.sol";
 
 /// @title ExecuteWithdraw - Test withdrawal scenarios for AI Stablecoin
@@ -13,7 +14,7 @@ import { SepoliaConfig } from "config/SepoliaConfig.sol";
 contract ExecuteWithdrawScript is Script {
     AIStablecoin aiusd;
     CollateralVault vault;
-    AIController controller;
+    RiskOracleController controller;
 
     IERC20 dai;
     IERC20 weth;
@@ -29,8 +30,8 @@ contract ExecuteWithdrawScript is Script {
 
         // Initialize contracts
         aiusd = AIStablecoin(SepoliaConfig.AI_STABLECOIN);
-        vault = CollateralVault(payable(SepoliaConfig.AI_VAULT));
-        controller = AIController(SepoliaConfig.AI_CONTROLLER);
+        vault = CollateralVault(payable(SepoliaConfig.COLLATERAL_VAULT));
+        controller = RiskOracleController(SepoliaConfig.RISK_ORACLE_CONTROLLER);
 
         // Initialize tokens
         dai = IERC20(SepoliaConfig.MOCK_DAI);

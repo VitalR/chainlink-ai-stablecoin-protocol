@@ -4,11 +4,11 @@ pragma solidity 0.8.30;
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
 
-import "../src/AIStablecoin.sol";
+import "../src/RiskOracleController.sol";
 import "../src/CollateralVault.sol";
-import "../src/AIController.sol";
-import "./mocks/MockAIOracle.sol";
+import "../src/AIStablecoin.sol";
 import "./mocks/MockERC20.sol";
+import "./mocks/MockAIOracleV2.sol";
 
 /// @title AIStablecoinE2E - End-to-End Integration Tests
 /// @notice Tests the complete flow: Deposit → AI Assessment → Minting
@@ -16,8 +16,8 @@ contract AIStablecoinE2E is Test {
     // Core contracts
     AIStablecoin public aiusd;
     CollateralVault public vault;
-    AIController public controller;
-    MockAIOracle public mockOracle;
+    RiskOracleController public controller;
+    MockAIOracleV2 public mockOracle;
 
     // Mock tokens
     MockERC20 public weth;
@@ -42,15 +42,16 @@ contract AIStablecoinE2E is Test {
         usdc = new MockERC20("USD Coin", "USDC", 6);
 
         // Deploy mock oracle
-        mockOracle = new MockAIOracle();
+        mockOracle = new MockAIOracleV2();
 
         // Deploy core contracts
         aiusd = new AIStablecoin();
 
-        controller = new AIController(
-            address(mockOracle), // oracle
-            11, // model ID
-            0.01 ether // oracle fee
+        controller = new RiskOracleController(
+            address(mockOracle), // functionsRouter
+            bytes32("fun_sepolia_1"), // donId
+            123, // subscriptionId
+            "return '150,75';" // aiSourceCode
         );
 
         vault = new CollateralVault(address(aiusd), address(controller));

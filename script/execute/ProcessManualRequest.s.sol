@@ -2,15 +2,16 @@
 pragma solidity 0.8.30;
 
 import "forge-std/Script.sol";
-import { AIController } from "src/AIController.sol";
+
+import { RiskOracleController } from "src/RiskOracleController.sol";
 import { SepoliaConfig } from "config/SepoliaConfig.sol";
 
 /// @title ProcessManualRequest - Process stuck AI requests manually
 contract ProcessManualRequestScript is Script {
-    AIController controller;
+    RiskOracleController controller;
 
     function setUp() public {
-        controller = AIController(SepoliaConfig.AI_CONTROLLER);
+        controller = RiskOracleController(SepoliaConfig.RISK_ORACLE_CONTROLLER);
     }
 
     /// @notice Request manual processing (user calls this first)
@@ -34,18 +35,8 @@ contract ProcessManualRequestScript is Script {
         console.log("=== Processing with Default Mint ===");
         console.log("Request ID:", requestId);
 
-        // Check options first
-        (bool canProcess, AIController.ManualStrategy[] memory strategies, uint256 timeUntilEmergency) =
-            controller.getManualProcessingOptions(requestId);
-
-        console.log("Can process:", canProcess);
-        console.log("Available strategies:", strategies.length);
-        console.log("Time until emergency:", timeUntilEmergency);
-
-        require(canProcess, "Manual processing not available yet");
-
-        // Use FORCE_DEFAULT_MINT strategy
-        controller.processWithOffChainAI(requestId, "", AIController.ManualStrategy.FORCE_DEFAULT_MINT);
+        // Use FORCE_DEFAULT_MINT strategy directly
+        controller.processWithOffChainAI(requestId, "", RiskOracleController.ManualStrategy.FORCE_DEFAULT_MINT);
 
         console.log("Manual processing completed with default mint strategy");
 
@@ -74,7 +65,9 @@ contract ProcessManualRequestScript is Script {
         console.log("Request ID:", requestId);
         console.log("AI Response:", aiResponse);
 
-        controller.processWithOffChainAI(requestId, aiResponse, AIController.ManualStrategy.PROCESS_WITH_OFFCHAIN_AI);
+        controller.processWithOffChainAI(
+            requestId, aiResponse, RiskOracleController.ManualStrategy.PROCESS_WITH_OFFCHAIN_AI
+        );
 
         console.log("Manual processing completed with AI response");
 
