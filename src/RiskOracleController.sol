@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import "./interfaces/IAIOracle.sol";
+import {FunctionsClient} from "lib/chainlink/contracts/src/v0.8/functions/dev/v1_0_0/FunctionsClient.sol";
+import {FunctionsRequest} from "lib/chainlink/contracts/src/v0.8/functions/dev/v1_0_0/libraries/FunctionsRequest.sol";
+import {AggregatorV3Interface} from "lib/chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "./interfaces/IAIStablecoin.sol";
-import "./interfaces/AIOracleCallbackReceiver.sol";
 import "lib/solbase/src/auth/OwnedThreeStep.sol";
 
-/// @title AIController - Enhanced AI Controller with Manual Processing
-/// @notice Handles AI requests with improved error handling and manual processing capabilities
-/// @dev Integrates with ORA Oracle and provides multiple recovery mechanisms
-contract AIController is OwnedThreeStep, AIOracleCallbackReceiver {
+/// @title RiskOracleController - Chainlink Functions AI Risk Assessment Controller
+/// @notice Handles AI-powered risk assessment using Chainlink Functions for optimal collateral ratios
+/// @dev Integrates with Chainlink Functions and Data Feeds for comprehensive risk analysis
+contract RiskOracleController is OwnedThreeStep, FunctionsClient {
+    using FunctionsRequest for FunctionsRequest.Request;
+
     /// @notice Custom errors
     error UnauthorizedCaller();
     error ZeroAddressCaller();
@@ -18,7 +21,7 @@ contract AIController is OwnedThreeStep, AIOracleCallbackReceiver {
     error AlreadyProcessed();
     error RequestFailed();
     error CallbackError();
-    error InvalidModelId();
+    error InvalidSubscriptionId();
     error InvalidFee();
     error InvalidPromptTemplate();
     error CircuitBreakerError();
@@ -27,13 +30,13 @@ contract AIController is OwnedThreeStep, AIOracleCallbackReceiver {
     error RequestNotExpired();
     error InvalidManualStrategy();
     error UnauthorizedManualProcessor();
+    error InvalidPriceFeed();
 
     /// @notice Manual processing strategies
     enum ManualStrategy {
         PROCESS_WITH_OFFCHAIN_AI, // Use off-chain AI response to mint
         EMERGENCY_WITHDRAWAL, // Return collateral without minting
         FORCE_DEFAULT_MINT // Mint with conservative default ratio
-
     }
 
     /// @notice Circuit breaker for emergency stops
@@ -44,31 +47,25 @@ contract AIController is OwnedThreeStep, AIOracleCallbackReceiver {
     uint256 public constant FAILURE_RESET_TIME = 1 hours;
 
     /// @notice Manual processing configuration
-    uint256 public constant MANUAL_PROCESSING_DELAY = 30 minutes; // Users can request manual processing after 30 min
-    uint256 public constant EMERGENCY_WITHDRAWAL_DELAY = 2 hours; // Emergency withdrawal after 2 hours
-    uint256 public constant DEFAULT_CONSERVATIVE_RATIO = 16_000; // 160% for force mint
+    uint256 public constant MANUAL_PROCESSING_DELAY = 30 minutes;
+    uint256 public constant EMERGENCY_WITHDRAWAL_DELAY = 2 hours;
+    uint256 public constant DEFAULT_CONSERVATIVE_RATIO = 16_000; // 160%
 
-    /// @notice Authorized manual processors (can be community members, DAO, etc.)
+    /// @notice Chainlink Functions configuration
+    bytes32 public donId;
+    uint64 public subscriptionId;
+    uint32 public gasLimit = 300_000;
+    string public aiSourceCode;
+    
+    /// @notice Price feeds for different tokens
+    mapping(string => AggregatorV3Interface) public priceFeeds;
+    
+    /// @notice Authorized manual processors
     mapping(address => bool) public authorizedManualProcessors;
 
-    /// @notice Flexible gas configuration
-    struct GasConfig {
-        uint64 minGasLimit;
-        uint64 maxGasLimit;
-        uint64 defaultGasLimit;
-        uint64 emergencyGasLimit;
-    }
-
-    GasConfig public gasConfig = GasConfig({
-        minGasLimit: 200_000,
-        maxGasLimit: 1_000_000,
-        defaultGasLimit: 500_000,
-        emergencyGasLimit: 300_000
-    });
-
-    /// @notice Request tracking with better data structure
-    mapping(uint256 => RequestInfo) public requests;
-    mapping(bytes32 => uint256) public requestsByHash; // Hash-based lookup
+    /// @notice Request tracking
+    mapping(bytes32 => RequestInfo) public requests; // Chainlink request ID -> RequestInfo
+    mapping(uint256 => bytes32) public internalToChainlinkId; // Internal ID -> Chainlink ID
     uint256 private requestCounter = 1;
 
     /// @notice Enhanced request information
@@ -80,47 +77,32 @@ contract AIController is OwnedThreeStep, AIOracleCallbackReceiver {
         uint256 timestamp;
         bool processed;
         uint256 internalRequestId;
-        uint256 oracleRequestId; // Store oracle ID when available
         uint8 retryCount;
-        bytes32 requestHash; // For faster lookups
-        bool manualProcessingRequested; // User requested manual processing
-        uint256 manualRequestTime; // When manual processing was requested
+        bool manualProcessingRequested;
+        uint256 manualRequestTime;
     }
 
-    /// @notice Authorized callers
+    /// @notice Authorized callers (vaults)
     mapping(address => bool) public authorizedCallers;
-
-    /// @notice Configuration
-    uint256 public modelId = 11;
-    uint256 public flatFee = 0;
-    uint256 public oracleFee = 0.01 ether;
-    IAIOracle public oraOracle;
-
-    /// @notice Prompt template
-    string public promptTemplate =
-        "Analyze this DeFi collateral basket for OPTIMAL LOW ratio. Maximize capital efficiency while ensuring safety. Consider volatility, correlation, liquidity. Respond: RATIO:XXX CONFIDENCE:YY (130-170%, 0-100%).";
 
     /// @notice Events
     event AIRequestSubmitted(
         uint256 indexed internalRequestId,
-        uint256 indexed oracleRequestId,
+        bytes32 indexed chainlinkRequestId,
         address indexed user,
-        address vault,
-        bytes32 requestHash
+        address vault
     );
     event AIResultProcessed(
         uint256 indexed internalRequestId,
-        uint256 indexed oracleRequestId,
+        bytes32 indexed chainlinkRequestId,
         uint256 ratio,
         uint256 confidence,
         uint256 mintAmount
     );
-    event CallbackFailed(uint256 indexed internalRequestId, string reason, uint256 gasUsed);
+    event CallbackFailed(uint256 indexed internalRequestId, string reason);
     event CircuitBreakerTripped(uint256 failureCount, uint256 timestamp);
     event ProcessingPaused(bool paused);
     event RequestRetried(uint256 indexed internalRequestId, uint8 retryCount);
-
-    // New manual processing events
     event ManualProcessingRequested(uint256 indexed internalRequestId, address indexed user, uint256 timestamp);
     event ManualProcessingCompleted(
         uint256 indexed internalRequestId,
@@ -137,6 +119,8 @@ contract AIController is OwnedThreeStep, AIOracleCallbackReceiver {
         uint256 ratio,
         uint256 confidence
     );
+    event PriceFeedUpdated(string indexed token, address indexed priceFeed);
+    event ChainlinkConfigUpdated(bytes32 donId, uint64 subscriptionId, uint32 gasLimit);
 
     /// @notice Modifiers
     modifier onlyAuthorizedCaller() {
@@ -154,7 +138,6 @@ contract AIController is OwnedThreeStep, AIOracleCallbackReceiver {
             if (block.timestamp < lastFailureTime + FAILURE_RESET_TIME) {
                 revert CircuitBreakerError();
             } else {
-                // Reset circuit breaker
                 failureCount = 0;
             }
         }
@@ -169,29 +152,63 @@ contract AIController is OwnedThreeStep, AIOracleCallbackReceiver {
     }
 
     /// @notice Initialize the contract
-    constructor(address _oracle, uint256 _modelId, uint256 _oracleFee)
-        OwnedThreeStep(msg.sender)
-        AIOracleCallbackReceiver(IAIOracle(_oracle))
-    {
-        modelId = _modelId;
-        oracleFee = _oracleFee;
-        oraOracle = IAIOracle(_oracle);
-
+    constructor(
+        address _functionsRouter,
+        bytes32 _donId,
+        uint64 _subscriptionId,
+        string memory _aiSourceCode
+    ) OwnedThreeStep(msg.sender) FunctionsClient(_functionsRouter) {
+        donId = _donId;
+        subscriptionId = _subscriptionId;
+        aiSourceCode = _aiSourceCode;
+        
         // Owner is automatically authorized for manual processing
         authorizedManualProcessors[msg.sender] = true;
     }
 
-    /// @notice Estimate total fee required for AI request
-    function estimateTotalFee() public view returns (uint256) {
-        return oracleFee + flatFee;
+    /// @notice Set up price feeds for tokens
+    /// @param tokens Array of token symbols (e.g., ["ETH", "WBTC", "DAI"])
+    /// @param feeds Array of corresponding Chainlink price feed addresses
+    function setPriceFeeds(string[] calldata tokens, address[] calldata feeds) external onlyOwner {
+        require(tokens.length == feeds.length, "Array length mismatch");
+        
+        for (uint256 i = 0; i < tokens.length; i++) {
+            if (feeds[i] == address(0)) revert InvalidPriceFeed();
+            priceFeeds[tokens[i]] = AggregatorV3Interface(feeds[i]);
+            emit PriceFeedUpdated(tokens[i], feeds[i]);
+        }
     }
 
-    /// @notice Submit AI request with improved error handling
+    /// @notice Update Chainlink Functions configuration
+    function updateChainlinkConfig(
+        bytes32 _donId,
+        uint64 _subscriptionId,
+        uint32 _gasLimit,
+        string calldata _aiSourceCode
+    ) external onlyOwner {
+        donId = _donId;
+        subscriptionId = _subscriptionId;
+        gasLimit = _gasLimit;
+        aiSourceCode = _aiSourceCode;
+        
+        emit ChainlinkConfigUpdated(_donId, _subscriptionId, _gasLimit);
+    }
+
+    /// @notice Estimate total fee required for AI request (now free with subscription)
+    function estimateTotalFee() public pure returns (uint256) {
+        return 0; // Chainlink Functions uses subscription model
+    }
+
+    /// @notice Submit AI request using Chainlink Functions
     /// @param user The user who deposited collateral
     /// @param basketData Encoded collateral basket information
     /// @param collateralValue Total USD value of collateral
     /// @return internalRequestId Our internal identifier for this AI request
-    function submitAIRequest(address user, bytes calldata basketData, uint256 collateralValue)
+    function submitAIRequest(
+        address user,
+        bytes calldata basketData,
+        uint256 collateralValue
+    )
         external
         payable
         onlyAuthorizedCaller
@@ -199,66 +216,154 @@ contract AIController is OwnedThreeStep, AIOracleCallbackReceiver {
         circuitBreakerCheck
         returns (uint256 internalRequestId)
     {
-        uint256 requiredFee = estimateTotalFee();
-        if (msg.value < requiredFee) revert InsufficientFee();
-
         internalRequestId = requestCounter++;
 
-        // Create unique hash for this request
-        bytes32 requestHash = keccak256(
-            abi.encodePacked(msg.sender, user, basketData, collateralValue, block.timestamp, internalRequestId)
+        // Create Functions request
+        FunctionsRequest.Request memory req;
+        req.initializeRequestForInlineJavaScript(aiSourceCode);
+        
+        // Prepare arguments: [basketData, collateralValue, currentPrices]
+        string[] memory args = new string[](3);
+        args[0] = string(basketData);
+        args[1] = _uint2str(collateralValue);
+        args[2] = _getCurrentPricesJson();
+        req.setArgs(args);
+
+        // Submit the request
+        bytes32 chainlinkRequestId = _sendRequest(
+            req.encodeCBOR(),
+            subscriptionId,
+            gasLimit,
+            donId
         );
 
-        // Create AI prompt
-        string memory prompt = _createPrompt(basketData, collateralValue);
-        bytes memory input = bytes(prompt);
+        // Store request info
+        requests[chainlinkRequestId] = RequestInfo({
+            vault: msg.sender,
+            user: user,
+            basketData: basketData,
+            collateralValue: collateralValue,
+            timestamp: block.timestamp,
+            processed: false,
+            internalRequestId: internalRequestId,
+            retryCount: 0,
+            manualProcessingRequested: false,
+            manualRequestTime: 0
+        });
 
-        // Prepare callback data with hash for verification
-        bytes memory callbackData =
-            abi.encode(msg.sender, user, basketData, collateralValue, internalRequestId, requestHash);
+        // Store mapping
+        internalToChainlinkId[internalRequestId] = chainlinkRequestId;
 
-        // Submit to ORA with dynamic gas limit
-        uint64 gasLimit = _calculateOptimalGasLimit(basketData);
+        emit AIRequestSubmitted(internalRequestId, chainlinkRequestId, user, msg.sender);
 
-        try oraOracle.requestCallback{ value: requiredFee }(modelId, input, address(this), gasLimit, callbackData)
-        returns (uint256 oracleRequestId) {
-            // Store request info with oracle ID
-            requests[internalRequestId] = RequestInfo({
-                vault: msg.sender,
-                user: user,
-                basketData: basketData,
-                collateralValue: collateralValue,
-                timestamp: block.timestamp,
-                processed: false,
-                internalRequestId: internalRequestId,
-                oracleRequestId: oracleRequestId,
-                retryCount: 0,
-                requestHash: requestHash,
-                manualProcessingRequested: false,
-                manualRequestTime: 0
-            });
+        return internalRequestId;
+    }
 
-            // Store hash mapping for fast lookup
-            requestsByHash[requestHash] = internalRequestId;
+    /// @notice Chainlink Functions callback
+    /// @param requestId The Chainlink request ID
+    /// @param response The AI response from Chainlink Functions
+    /// @param err Any error that occurred
+    function fulfillRequest(bytes32 requestId, bytes memory response, bytes memory err) internal override {
+        RequestInfo storage request = requests[requestId];
+        
+        if (request.internalRequestId == 0) {
+            emit CallbackFailed(0, "Request not found");
+            return;
+        }
 
-            emit AIRequestSubmitted(internalRequestId, oracleRequestId, user, msg.sender, requestHash);
+        if (request.processed) {
+            emit CallbackFailed(request.internalRequestId, "Already processed");
+            return;
+        }
 
-            // Refund excess
-            if (msg.value > requiredFee) {
-                payable(msg.sender).transfer(msg.value - requiredFee);
-            }
+        if (err.length > 0) {
+            _handleCallbackFailure(request.internalRequestId, string(err));
+            return;
+        }
 
-            return internalRequestId;
+        try this._processAIResponse(requestId, response) {
+            // Success handled in _processAIResponse
         } catch Error(string memory reason) {
-            _handleSubmissionFailure(reason);
-            revert RequestFailed();
+            _handleCallbackFailure(request.internalRequestId, reason);
+        } catch {
+            _handleCallbackFailure(request.internalRequestId, "Unknown error in processing");
+        }
+    }
+
+    /// @notice Process AI response (external to handle try/catch)
+    function _processAIResponse(bytes32 requestId, bytes memory response) external {
+        require(msg.sender == address(this), "Only self");
+        
+        RequestInfo storage request = requests[requestId];
+        string memory responseStr = string(response);
+        
+        // Parse AI response
+        (uint256 ratio, uint256 confidence) = _parseResponse(responseStr);
+        ratio = _applySafetyBounds(ratio, confidence);
+        
+        // Calculate mint amount
+        uint256 mintAmount = (request.collateralValue * 10_000) / ratio;
+        
+        // Mark as processed
+        request.processed = true;
+        
+        // Trigger minting
+        _triggerMintingSafe(request.vault, request.user, request.internalRequestId, mintAmount, ratio, confidence);
+        
+        emit AIResultProcessed(request.internalRequestId, requestId, ratio, confidence, mintAmount);
+    }
+
+    /// @notice Get current prices for all supported tokens in JSON format
+    function _getCurrentPricesJson() internal view returns (string memory) {
+        // This would be expanded based on your supported tokens
+        // For now, returning a simple structure
+        return '{"ETH": 2000, "WBTC": 30000, "DAI": 1, "USDC": 1}';
+    }
+
+    /// @notice Trigger minting in the vault
+    function _triggerMintingSafe(
+        address vault,
+        address user,
+        uint256 internalRequestId,
+        uint256 mintAmount,
+        uint256 ratio,
+        uint256 confidence
+    ) internal {
+        bytes memory callData = abi.encodeWithSignature(
+            "processAICallback(address,uint256,uint256,uint256,uint256)",
+            user,
+            internalRequestId,
+            mintAmount,
+            ratio,
+            confidence
+        );
+
+        (bool success, bytes memory returnData) = vault.call{gas: 200_000}(callData);
+
+        if (!success) {
+            emit CallbackFailed(internalRequestId, _getRevertReason(returnData));
+            _handleCallbackFailure(internalRequestId, _getRevertReason(returnData));
+        }
+    }
+
+    /// @notice Handle callback failures
+    function _handleCallbackFailure(uint256 requestId, string memory reason) internal {
+        failureCount++;
+        lastFailureTime = block.timestamp;
+
+        emit CallbackFailed(requestId, reason);
+
+        if (failureCount >= MAX_FAILURES) {
+            processingPaused = true;
+            emit CircuitBreakerTripped(failureCount, block.timestamp);
         }
     }
 
     /// @notice User requests manual processing for stuck request
-    /// @param internalRequestId The request ID that's stuck
     function requestManualProcessing(uint256 internalRequestId) external {
-        RequestInfo storage request = requests[internalRequestId];
+        bytes32 chainlinkRequestId = internalToChainlinkId[internalRequestId];
+        RequestInfo storage request = requests[chainlinkRequestId];
+        
         if (request.internalRequestId == 0) revert RequestNotFound();
         if (request.user != msg.sender) revert UnauthorizedCaller();
         if (request.processed) revert AlreadyProcessed();
@@ -271,21 +376,18 @@ contract AIController is OwnedThreeStep, AIOracleCallbackReceiver {
     }
 
     /// @notice Process request with off-chain AI response
-    /// @param internalRequestId The request to process
-    /// @param offChainAIResponse The AI response obtained off-chain
-    /// @param strategy Manual processing strategy to use
     function processWithOffChainAI(
         uint256 internalRequestId,
         string calldata offChainAIResponse,
         ManualStrategy strategy
     ) external onlyAuthorizedManualProcessor {
-        RequestInfo storage request = requests[internalRequestId];
+        bytes32 chainlinkRequestId = internalToChainlinkId[internalRequestId];
+        RequestInfo storage request = requests[chainlinkRequestId];
+        
         if (request.internalRequestId == 0) revert RequestNotFound();
         if (request.processed) revert AlreadyProcessed();
 
-        // Check if manual processing was requested and enough time has passed
         if (!request.manualProcessingRequested) {
-            // Allow immediate processing by owner/authorized processors if system is stuck
             if (msg.sender != owner && block.timestamp < request.timestamp + MANUAL_PROCESSING_DELAY) {
                 revert RequestNotExpired();
             }
@@ -296,56 +398,46 @@ contract AIController is OwnedThreeStep, AIOracleCallbackReceiver {
         uint256 mintAmount;
 
         if (strategy == ManualStrategy.PROCESS_WITH_OFFCHAIN_AI) {
-            // Parse the off-chain AI response
             (ratio, confidence) = _parseResponse(offChainAIResponse);
             ratio = _applySafetyBounds(ratio, confidence);
             mintAmount = (request.collateralValue * 10_000) / ratio;
 
             emit OffChainAIProcessed(internalRequestId, msg.sender, offChainAIResponse, ratio, confidence);
         } else if (strategy == ManualStrategy.EMERGENCY_WITHDRAWAL) {
-            // Return collateral without minting
             ratio = 0;
             confidence = 0;
             mintAmount = 0;
-
-            // Trigger withdrawal instead of minting
             _triggerEmergencyWithdrawal(request.vault, request.user, internalRequestId);
-
             emit EmergencyWithdrawal(internalRequestId, request.user, block.timestamp);
         } else if (strategy == ManualStrategy.FORCE_DEFAULT_MINT) {
-            // Use conservative default ratio
-            ratio = DEFAULT_CONSERVATIVE_RATIO; // 160%
-            confidence = 50; // Medium confidence
+            ratio = DEFAULT_CONSERVATIVE_RATIO;
+            confidence = 50;
             mintAmount = (request.collateralValue * 10_000) / ratio;
         } else {
             revert InvalidManualStrategy();
         }
 
-        // Mark as processed
         request.processed = true;
 
-        // Execute the chosen strategy
         if (strategy != ManualStrategy.EMERGENCY_WITHDRAWAL) {
             _triggerMintingSafe(request.vault, request.user, internalRequestId, mintAmount, ratio, confidence);
         }
 
         emit ManualProcessingCompleted(internalRequestId, msg.sender, strategy, ratio, mintAmount);
-        emit AIResultProcessed(internalRequestId, request.oracleRequestId, ratio, confidence, mintAmount);
+        emit AIResultProcessed(internalRequestId, chainlinkRequestId, ratio, confidence, mintAmount);
     }
 
-    /// @notice Emergency withdrawal for users who don't want to proceed
-    /// @param internalRequestId The request to withdraw from
+    /// @notice Emergency withdrawal
     function emergencyWithdraw(uint256 internalRequestId) external {
-        RequestInfo storage request = requests[internalRequestId];
+        bytes32 chainlinkRequestId = internalToChainlinkId[internalRequestId];
+        RequestInfo storage request = requests[chainlinkRequestId];
+        
         if (request.internalRequestId == 0) revert RequestNotFound();
         if (request.user != msg.sender) revert UnauthorizedCaller();
         if (request.processed) revert AlreadyProcessed();
         if (block.timestamp < request.timestamp + EMERGENCY_WITHDRAWAL_DELAY) revert RequestNotExpired();
 
-        // Mark as processed
         request.processed = true;
-
-        // Trigger withdrawal
         _triggerEmergencyWithdrawal(request.vault, request.user, internalRequestId);
 
         emit EmergencyWithdrawal(internalRequestId, msg.sender, block.timestamp);
@@ -354,343 +446,14 @@ contract AIController is OwnedThreeStep, AIOracleCallbackReceiver {
     /// @notice Trigger emergency withdrawal in vault
     function _triggerEmergencyWithdrawal(address vault, address user, uint256 internalRequestId) internal {
         bytes memory callData = abi.encodeWithSignature("emergencyWithdraw(address,uint256)", user, internalRequestId);
-
-        (bool success, bytes memory returnData) = vault.call{ gas: gasConfig.emergencyGasLimit }(callData);
-
+        (bool success, bytes memory returnData) = vault.call{gas: 200_000}(callData);
         if (!success) {
-            emit CallbackFailed(internalRequestId, _getRevertReason(returnData), gasConfig.emergencyGasLimit);
+            emit CallbackFailed(internalRequestId, _getRevertReason(returnData));
         }
     }
 
-    /// @notice Get all requests that can be manually processed
-    /// @param startIndex Starting index for pagination
-    /// @param count Number of requests to return
-    /// @return requestIds Array of request IDs that can be manually processed
-    /// @return users Array of corresponding user addresses
-    /// @return timestamps Array of request timestamps
-    /// @return strategies Array of available strategies for each request
-    function getManualProcessingCandidates(uint256 startIndex, uint256 count)
-        external
-        view
-        returns (
-            uint256[] memory requestIds,
-            address[] memory users,
-            uint256[] memory timestamps,
-            ManualStrategy[][] memory strategies
-        )
-    {
-        uint256[] memory tempRequestIds = new uint256[](count);
-        address[] memory tempUsers = new address[](count);
-        uint256[] memory tempTimestamps = new uint256[](count);
-        ManualStrategy[][] memory tempStrategies = new ManualStrategy[][](count);
-
-        uint256 found = 0;
-        uint256 checked = 0;
-
-        for (uint256 i = startIndex + 1; found < count && i < requestCounter; i++) {
-            RequestInfo memory request = requests[i];
-
-            if (!request.processed && request.timestamp > 0) {
-                uint256 timeElapsed = block.timestamp - request.timestamp;
-
-                if (timeElapsed >= MANUAL_PROCESSING_DELAY) {
-                    tempRequestIds[found] = i;
-                    tempUsers[found] = request.user;
-                    tempTimestamps[found] = request.timestamp;
-
-                    // Determine available strategies
-                    ManualStrategy[] memory availableStrategies;
-
-                    if (timeElapsed >= EMERGENCY_WITHDRAWAL_DELAY) {
-                        // All strategies available
-                        availableStrategies = new ManualStrategy[](3);
-                        availableStrategies[0] = ManualStrategy.PROCESS_WITH_OFFCHAIN_AI;
-                        availableStrategies[1] = ManualStrategy.EMERGENCY_WITHDRAWAL;
-                        availableStrategies[2] = ManualStrategy.FORCE_DEFAULT_MINT;
-                    } else {
-                        // Only AI processing and force mint available
-                        availableStrategies = new ManualStrategy[](2);
-                        availableStrategies[0] = ManualStrategy.PROCESS_WITH_OFFCHAIN_AI;
-                        availableStrategies[1] = ManualStrategy.FORCE_DEFAULT_MINT;
-                    }
-
-                    tempStrategies[found] = availableStrategies;
-                    found++;
-                }
-            }
-            checked++;
-        }
-
-        // Resize arrays to actual found count
-        requestIds = new uint256[](found);
-        users = new address[](found);
-        timestamps = new uint256[](found);
-        strategies = new ManualStrategy[][](found);
-
-        for (uint256 i = 0; i < found; i++) {
-            requestIds[i] = tempRequestIds[i];
-            users[i] = tempUsers[i];
-            timestamps[i] = tempTimestamps[i];
-            strategies[i] = tempStrategies[i];
-        }
-    }
-
-    /// @notice Check what manual processing options are available for a request
-    /// @param internalRequestId The request to check
-    /// @return canProcess Whether manual processing is available
-    /// @return availableStrategies Array of available strategies
-    /// @return timeUntilEmergencyWithdraw Time until emergency withdrawal is available
-    function getManualProcessingOptions(uint256 internalRequestId)
-        external
-        view
-        returns (bool canProcess, ManualStrategy[] memory availableStrategies, uint256 timeUntilEmergencyWithdraw)
-    {
-        RequestInfo memory request = requests[internalRequestId];
-
-        if (request.internalRequestId == 0 || request.processed) {
-            return (false, new ManualStrategy[](0), 0);
-        }
-
-        uint256 timeElapsed = block.timestamp - request.timestamp;
-
-        if (timeElapsed < MANUAL_PROCESSING_DELAY) {
-            uint256 timeRemaining = MANUAL_PROCESSING_DELAY - timeElapsed;
-            return (false, new ManualStrategy[](0), timeRemaining);
-        }
-
-        canProcess = true;
-
-        if (timeElapsed >= EMERGENCY_WITHDRAWAL_DELAY) {
-            // All strategies available
-            availableStrategies = new ManualStrategy[](3);
-            availableStrategies[0] = ManualStrategy.PROCESS_WITH_OFFCHAIN_AI;
-            availableStrategies[1] = ManualStrategy.EMERGENCY_WITHDRAWAL;
-            availableStrategies[2] = ManualStrategy.FORCE_DEFAULT_MINT;
-            timeUntilEmergencyWithdraw = 0;
-        } else {
-            // Only AI processing and force mint available
-            availableStrategies = new ManualStrategy[](2);
-            availableStrategies[0] = ManualStrategy.PROCESS_WITH_OFFCHAIN_AI;
-            availableStrategies[1] = ManualStrategy.FORCE_DEFAULT_MINT;
-            timeUntilEmergencyWithdraw = EMERGENCY_WITHDRAWAL_DELAY - timeElapsed;
-        }
-    }
-
-    /// @notice Improved ORA callback with better error handling
-    /// @param requestId The oracle request ID
-    /// @param output AI model output
-    /// @param callbackData Encoded callback data
-    function aiOracleCallback(uint256 requestId, bytes calldata output, bytes calldata callbackData)
-        external
-        onlyAIOracleCallback
-        whenNotPaused
-    {
-        uint256 gasStart = gasleft();
-
-        try this._processCallback(requestId, output, callbackData) {
-            // Success - reset failure count
-            if (failureCount > 0) {
-                failureCount = 0;
-            }
-        } catch Error(string memory reason) {
-            _handleCallbackFailure(requestId, reason, gasStart - gasleft());
-        } catch {
-            _handleCallbackFailure(requestId, "Unknown error", gasStart - gasleft());
-        }
-    }
-
-    /// @notice Internal callback processing (separated for better error handling)
-    /// @param requestId The oracle request ID
-    /// @param output AI model output
-    /// @param callbackData Encoded callback data
-    function _processCallback(uint256 requestId, bytes calldata output, bytes calldata callbackData) external {
-        require(msg.sender == address(this), "Internal function");
-
-        // Decode callback data with hash verification
-        (
-            address vault,
-            address user,
-            bytes memory basketData,
-            uint256 collateralValue,
-            uint256 internalRequestId,
-            bytes32 requestHash
-        ) = abi.decode(callbackData, (address, address, bytes, uint256, uint256, bytes32));
-
-        // Verify request exists and hash matches
-        RequestInfo storage request = requests[internalRequestId];
-        if (request.internalRequestId == 0) revert RequestNotFound();
-        if (request.requestHash != requestHash) revert RequestIdMismatch();
-        if (request.processed) revert AlreadyProcessed();
-
-        // Parse AI response
-        (uint256 ratio, uint256 confidence) = _parseResponse(string(output));
-
-        // Apply safety bounds
-        ratio = _applySafetyBounds(ratio, confidence);
-
-        // Calculate mint amount
-        uint256 mintAmount = (request.collateralValue * 10_000) / ratio;
-
-        // Mark as processed
-        request.processed = true;
-
-        // Trigger minting with improved error handling
-        _triggerMintingSafe(request.vault, request.user, internalRequestId, mintAmount, ratio, confidence);
-
-        emit AIResultProcessed(internalRequestId, requestId, ratio, confidence, mintAmount);
-    }
-
-    /// @notice Safe minting with fallback mechanism
-    function _triggerMintingSafe(
-        address vault,
-        address user,
-        uint256 internalRequestId,
-        uint256 mintAmount,
-        uint256 ratio,
-        uint256 confidence
-    ) internal {
-        // Use low-level call to prevent revert from breaking the callback
-        bytes memory callData = abi.encodeWithSignature(
-            "processAICallback(address,uint256,uint256,uint256,uint256)",
-            user,
-            internalRequestId,
-            mintAmount,
-            ratio,
-            confidence
-        );
-
-        (bool success, bytes memory returnData) = vault.call{ gas: gasConfig.emergencyGasLimit }(callData);
-
-        if (!success) {
-            // Store failed mint for manual processing
-            emit CallbackFailed(internalRequestId, _getRevertReason(returnData), gasConfig.emergencyGasLimit);
-
-            // Don't revert - allow callback to complete
-            // Failed mints can be processed manually later
-        }
-    }
-
-    /// @notice Calculate optimal gas limit based on request complexity
-    function _calculateOptimalGasLimit(bytes memory basketData) internal view returns (uint64) {
-        uint256 dataSize = basketData.length;
-
-        if (dataSize < 100) {
-            return gasConfig.minGasLimit;
-        } else if (dataSize > 500) {
-            return gasConfig.maxGasLimit;
-        } else {
-            // Scale between min and max based on data size
-            uint256 scaledGas =
-                gasConfig.minGasLimit + ((dataSize - 100) * (gasConfig.maxGasLimit - gasConfig.minGasLimit)) / 400;
-            return uint64(scaledGas);
-        }
-    }
-
-    /// @notice Handle submission failures
-    function _handleSubmissionFailure(string memory reason) internal {
-        failureCount++;
-        lastFailureTime = block.timestamp;
-
-        if (failureCount >= MAX_FAILURES) {
-            processingPaused = true;
-            emit CircuitBreakerTripped(failureCount, block.timestamp);
-        }
-    }
-
-    /// @notice Handle callback failures
-    function _handleCallbackFailure(uint256 requestId, string memory reason, uint256 gasUsed) internal {
-        failureCount++;
-        lastFailureTime = block.timestamp;
-
-        emit CallbackFailed(requestId, reason, gasUsed);
-
-        if (failureCount >= MAX_FAILURES) {
-            processingPaused = true;
-            emit CircuitBreakerTripped(failureCount, block.timestamp);
-        }
-    }
-
-    /// @notice Extract revert reason from return data
-    function _getRevertReason(bytes memory returnData) internal pure returns (string memory) {
-        if (returnData.length < 68) return "Unknown error";
-
-        assembly {
-            returnData := add(returnData, 0x04)
-        }
-        return abi.decode(returnData, (string));
-    }
-
-    /// @notice Emergency functions
-    function pauseProcessing() external onlyOwner {
-        processingPaused = true;
-        emit ProcessingPaused(true);
-    }
-
-    function resumeProcessing() external onlyOwner {
-        processingPaused = false;
-        failureCount = 0;
-        emit ProcessingPaused(false);
-    }
-
-    function resetCircuitBreaker() external onlyOwner {
-        failureCount = 0;
-        lastFailureTime = 0;
-    }
-
-    /// @notice Configuration functions
-    function updateGasConfig(uint64 minGasLimit, uint64 maxGasLimit, uint64 defaultGasLimit, uint64 emergencyGasLimit)
-        external
-        onlyOwner
-    {
-        gasConfig = GasConfig(minGasLimit, maxGasLimit, defaultGasLimit, emergencyGasLimit);
-    }
-
-    function setAuthorizedCaller(address caller, bool authorized) external onlyOwner {
-        if (caller == address(0)) revert ZeroAddressCaller();
-        authorizedCallers[caller] = authorized;
-    }
-
-    function setAuthorizedManualProcessor(address processor, bool authorized) external onlyOwner {
-        if (processor == address(0)) revert ZeroAddressCaller();
-        authorizedManualProcessors[processor] = authorized;
-    }
-
-    function updateModelId(uint256 newModelId) external onlyOwner {
-        if (newModelId == 0) revert InvalidModelId();
-        modelId = newModelId;
-    }
-
-    function updateOracleFee(uint256 newOracleFee) external onlyOwner {
-        oracleFee = newOracleFee;
-        emit OracleFeeUpdated(newOracleFee);
-    }
-
-    function updateFlatFee(uint256 newFee) external onlyOwner {
-        flatFee = newFee;
-    }
-
-    /// @notice Update prompt template (owner only)
-    /// @param newTemplate New prompt template
-    function updatePromptTemplate(string calldata newTemplate) external onlyOwner {
-        if (bytes(newTemplate).length == 0) revert InvalidPromptTemplate();
-        promptTemplate = newTemplate;
-    }
-
-    /// @notice Events for oracle updates
-    event OracleUpdated(address indexed newOracle);
-    event OracleFeeUpdated(uint256 newFee);
-
-    /// @notice Utility functions (same as original)
-    function _createPrompt(bytes memory basketData, uint256 collateralValue) internal view returns (string memory) {
-        return string(
-            abi.encodePacked(
-                promptTemplate, " Value: $", _uint2str(collateralValue / 1e18), " Data: ", string(basketData)
-            )
-        );
-    }
-
+    /// @notice Parse AI response (same logic as before)
     function _parseResponse(string memory response) internal pure returns (uint256 ratio, uint256 confidence) {
-        // Same parsing logic as original
         ratio = 15_000; // 150% default
         confidence = 50;
 
@@ -717,6 +480,7 @@ contract AIController is OwnedThreeStep, AIOracleCallbackReceiver {
         }
     }
 
+    /// @notice Apply safety bounds to AI ratio
     function _applySafetyBounds(uint256 aiRatio, uint256 confidence) internal pure returns (uint256) {
         uint256 minRatio = 13_000; // 130%
         uint256 maxRatio = 17_000; // 170%
@@ -732,7 +496,44 @@ contract AIController is OwnedThreeStep, AIOracleCallbackReceiver {
         return aiRatio;
     }
 
-    // Helper functions (same as original)
+    /// @notice Extract revert reason from return data
+    function _getRevertReason(bytes memory returnData) internal pure returns (string memory) {
+        if (returnData.length < 68) return "Unknown error";
+        assembly {
+            returnData := add(returnData, 0x04)
+        }
+        return abi.decode(returnData, (string));
+    }
+
+    /// @notice Emergency functions
+    function pauseProcessing() external onlyOwner {
+        processingPaused = true;
+        emit ProcessingPaused(true);
+    }
+
+    function resumeProcessing() external onlyOwner {
+        processingPaused = false;
+        failureCount = 0;
+        emit ProcessingPaused(false);
+    }
+
+    function resetCircuitBreaker() external onlyOwner {
+        failureCount = 0;
+        lastFailureTime = 0;
+    }
+
+    /// @notice Configuration functions
+    function setAuthorizedCaller(address caller, bool authorized) external onlyOwner {
+        if (caller == address(0)) revert ZeroAddressCaller();
+        authorizedCallers[caller] = authorized;
+    }
+
+    function setAuthorizedManualProcessor(address processor, bool authorized) external onlyOwner {
+        if (processor == address(0)) revert ZeroAddressCaller();
+        authorizedManualProcessors[processor] = authorized;
+    }
+
+    /// @notice Helper functions
     function _matches(bytes memory data, uint256 start, string memory pattern) internal pure returns (bool) {
         bytes memory p = bytes(pattern);
         if (start + p.length > data.length) return false;
@@ -776,12 +577,8 @@ contract AIController is OwnedThreeStep, AIOracleCallbackReceiver {
 
     /// @notice View functions
     function getRequestInfo(uint256 internalRequestId) external view returns (RequestInfo memory) {
-        return requests[internalRequestId];
-    }
-
-    function getRequestByHash(bytes32 requestHash) external view returns (RequestInfo memory) {
-        uint256 internalRequestId = requestsByHash[requestHash];
-        return requests[internalRequestId];
+        bytes32 chainlinkRequestId = internalToChainlinkId[internalRequestId];
+        return requests[chainlinkRequestId];
     }
 
     function getSystemStatus()
@@ -796,4 +593,13 @@ contract AIController is OwnedThreeStep, AIOracleCallbackReceiver {
             failureCount >= MAX_FAILURES && block.timestamp < lastFailureTime + FAILURE_RESET_TIME
         );
     }
-}
+
+    /// @notice Get the latest price from Chainlink price feed
+    function getLatestPrice(string calldata token) external view returns (int256) {
+        AggregatorV3Interface priceFeed = priceFeeds[token];
+        if (address(priceFeed) == address(0)) revert InvalidPriceFeed();
+        
+        (, int256 price, , , ) = priceFeed.latestRoundData();
+        return price;
+    }
+} 
