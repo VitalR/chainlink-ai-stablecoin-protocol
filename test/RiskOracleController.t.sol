@@ -4,11 +4,14 @@ pragma solidity 0.8.30;
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
 
-import "../src/RiskOracleController.sol";
-import "../src/CollateralVault.sol";
-import "../src/AIStablecoin.sol";
-import "./mocks/MockERC20.sol";
-import "./mocks/MockChainlinkFunctionsRouter.sol";
+import { AIStablecoin } from "../src/AIStablecoin.sol";
+import { CollateralVault } from "../src/CollateralVault.sol";
+import { RiskOracleController } from "../src/RiskOracleController.sol";
+
+import { MockChainlinkFunctionsRouter } from "./mocks/MockChainlinkFunctionsRouter.sol";
+import { MockDAI } from "./mocks/MockDAI.sol";
+import { MockUSDC } from "./mocks/MockUSDC.sol";
+import { MockWETH } from "./mocks/MockWETH.sol";
 
 /// @title RiskOracleControllerTest - Tests for Chainlink Functions-based RiskOracleController
 /// @notice Tests Chainlink Functions integration, price feeds, and manual processing
@@ -20,9 +23,9 @@ contract RiskOracleControllerTest is Test {
     MockChainlinkFunctionsRouter public mockRouter;
 
     // Mock tokens
-    MockERC20 public weth;
-    MockERC20 public usdc;
-    MockERC20 public dai;
+    MockWETH public weth;
+    MockUSDC public usdc;
+    MockDAI public dai;
 
     // Test accounts
     address public owner = makeAddr("owner");
@@ -57,9 +60,9 @@ contract RiskOracleControllerTest is Test {
         vm.startPrank(owner);
 
         // Deploy mock tokens
-        weth = new MockERC20("Wrapped Ether", "WETH", 18);
-        usdc = new MockERC20("USD Coin", "USDC", 6);
-        dai = new MockERC20("DAI Stablecoin", "DAI", 18);
+        weth = new MockWETH();
+        usdc = new MockUSDC();
+        dai = new MockDAI();
 
         // Deploy mock Chainlink Functions router
         mockRouter = new MockChainlinkFunctionsRouter();
