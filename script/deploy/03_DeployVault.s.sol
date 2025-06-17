@@ -18,7 +18,7 @@ contract DeployVaultScript is Script {
     function run() public {
         // Use deployed AIUSD and RiskOracleController
         address aiusdAddr = SepoliaConfig.AI_STABLECOIN;
-        address controllerAddr = SepoliaConfig.AI_CONTROLLER;
+        address controllerAddr = SepoliaConfig.RISK_ORACLE_CONTROLLER;
 
         require(aiusdAddr != address(0), "AIUSD address not set in config");
         require(controllerAddr != address(0), "Controller address not set in config");
@@ -35,15 +35,16 @@ contract DeployVaultScript is Script {
         // Add supported tokens with initial prices
         vault.addToken(SepoliaConfig.MOCK_DAI, 1e18, 18, "DAI"); // $1 DAI
         vault.addToken(SepoliaConfig.MOCK_WETH, 3500e18, 18, "WETH"); // $3500 ETH
-        vault.addToken(SepoliaConfig.MOCK_WBTC, 95_000e18, 18, "WBTC"); // $95000 BTC
+        vault.addToken(SepoliaConfig.MOCK_WBTC, 95_000e18, 8, "WBTC"); // $95000 BTC with 8 decimals
+        vault.addToken(SepoliaConfig.MOCK_USDC, 1e18, 6, "USDC"); // $1 USDC with 6 decimals
 
-        console.log("==Tokens added: DAI, WETH, WBTC");
+        console.log("==Tokens added: DAI, WETH, WBTC, USDC");
 
         vm.stopBroadcast();
 
         console.log("\n==NEXT STEPS==");
         console.log("1. Update SepoliaConfig.sol with new vault address:");
-        console.log("   AI_VAULT = %s", address(vault));
+        console.log("   COLLATERAL_VAULT = %s", address(vault));
         console.log("2. Authorize vault in AIUSD contract:");
         console.log(
             "   cast send %s 'addVault(address)' %s --private-key $DEPLOYER_PRIVATE_KEY --rpc-url $SEPOLIA_RPC_URL",

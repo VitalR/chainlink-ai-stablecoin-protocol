@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import { ERC20 } from "lib/solmate/src/tokens/ERC20.sol";
+import { ERC20 } from "@solmate/tokens/ERC20.sol";
 
-contract TestDAI is ERC20 {
-    constructor() ERC20("TestDAI", "TestDAI", 18) { }
+contract MockWETH is ERC20 {
+    constructor() ERC20("MockWETH", "MockWETH", 18) { }
 
     function mint(address account, uint256 amount) public returns (bool) {
         _mint(account, amount);

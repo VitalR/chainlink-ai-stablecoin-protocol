@@ -3,14 +3,16 @@ pragma solidity 0.8.30;
 
 import "forge-std/Script.sol";
 
-import { TestDAI } from "test/mocks/TestDAI.sol";
-import { TestWETH } from "test/mocks/TestWETH.sol";
-import { TestWBTC } from "test/mocks/TestWBTC.sol";
+import { MockDAI } from "test/mocks/MockDAI.sol";
+import { MockWETH } from "test/mocks/MockWETH.sol";
+import { MockWBTC } from "test/mocks/MockWBTC.sol";
+import { MockUSDC } from "test/mocks/MockUSDC.sol";
 
 contract DeployTestTokensScript is Script {
-    TestDAI dai;
-    TestWETH weth;
-    TestWBTC wbtc;
+    MockDAI dai;
+    MockWETH weth;
+    MockWBTC wbtc;
+    MockUSDC usdc;
     address deployerPublicKey;
     uint256 deployerPrivateKey;
 
@@ -21,12 +23,14 @@ contract DeployTestTokensScript is Script {
 
     function run() public {
         vm.startBroadcast(deployerPrivateKey);
-        dai = new TestDAI();
-        weth = new TestWETH();
-        wbtc = new TestWBTC();
+        dai = new MockDAI();
+        weth = new MockWETH();
+        wbtc = new MockWBTC();
+        usdc = new MockUSDC();
         console.log("==dai addr=%s", address(dai));
         console.log("==weth addr=%s", address(weth));
         console.log("==wbtc addr=%s", address(wbtc));
+        console.log("==usdc addr=%s", address(usdc));
         vm.stopBroadcast();
     }
 }
