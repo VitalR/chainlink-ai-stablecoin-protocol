@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import {FunctionsClient} from "lib/chainlink/contracts/src/v0.8/functions/dev/v1_0_0/FunctionsClient.sol";
-import {FunctionsRequest} from "lib/chainlink/contracts/src/v0.8/functions/dev/v1_0_0/libraries/FunctionsRequest.sol";
-import {AggregatorV3Interface} from "lib/chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+import { FunctionsClient } from "lib/chainlink/contracts/src/v0.8/functions/dev/v1_0_0/FunctionsClient.sol";
+import { FunctionsRequest } from "lib/chainlink/contracts/src/v0.8/functions/dev/v1_0_0/libraries/FunctionsRequest.sol";
+import { AggregatorV3Interface } from "lib/chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "./interfaces/IAIStablecoin.sol";
 import "lib/solbase/src/auth/OwnedThreeStep.sol";
 
@@ -37,6 +37,7 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
         PROCESS_WITH_OFFCHAIN_AI, // Use off-chain AI response to mint
         EMERGENCY_WITHDRAWAL, // Return collateral without minting
         FORCE_DEFAULT_MINT // Mint with conservative default ratio
+
     }
 
     /// @notice Circuit breaker for emergency stops
@@ -56,10 +57,10 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
     uint64 public subscriptionId;
     uint32 public gasLimit = 300_000;
     string public aiSourceCode;
-    
+
     /// @notice Price feeds for different tokens
     mapping(string => AggregatorV3Interface) public priceFeeds;
-    
+
     /// @notice Authorized manual processors
     mapping(address => bool) public authorizedManualProcessors;
 
@@ -87,10 +88,7 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
 
     /// @notice Events
     event AIRequestSubmitted(
-        uint256 indexed internalRequestId,
-        bytes32 indexed chainlinkRequestId,
-        address indexed user,
-        address vault
+        uint256 indexed internalRequestId, bytes32 indexed chainlinkRequestId, address indexed user, address vault
     );
     event AIResultProcessed(
         uint256 indexed internalRequestId,
@@ -152,16 +150,14 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
     }
 
     /// @notice Initialize the contract
-    constructor(
-        address _functionsRouter,
-        bytes32 _donId,
-        uint64 _subscriptionId,
-        string memory _aiSourceCode
-    ) OwnedThreeStep(msg.sender) FunctionsClient(_functionsRouter) {
+    constructor(address _functionsRouter, bytes32 _donId, uint64 _subscriptionId, string memory _aiSourceCode)
+        OwnedThreeStep(msg.sender)
+        FunctionsClient(_functionsRouter)
+    {
         donId = _donId;
         subscriptionId = _subscriptionId;
         aiSourceCode = _aiSourceCode;
-        
+
         // Owner is automatically authorized for manual processing
         authorizedManualProcessors[msg.sender] = true;
     }
@@ -171,7 +167,7 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
     /// @param feeds Array of corresponding Chainlink price feed addresses
     function setPriceFeeds(string[] calldata tokens, address[] calldata feeds) external onlyOwner {
         require(tokens.length == feeds.length, "Array length mismatch");
-        
+
         for (uint256 i = 0; i < tokens.length; i++) {
             if (feeds[i] == address(0)) revert InvalidPriceFeed();
             priceFeeds[tokens[i]] = AggregatorV3Interface(feeds[i]);
@@ -190,7 +186,7 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
         subscriptionId = _subscriptionId;
         gasLimit = _gasLimit;
         aiSourceCode = _aiSourceCode;
-        
+
         emit ChainlinkConfigUpdated(_donId, _subscriptionId, _gasLimit);
     }
 
@@ -204,11 +200,7 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
     /// @param basketData Encoded collateral basket information
     /// @param collateralValue Total USD value of collateral
     /// @return internalRequestId Our internal identifier for this AI request
-    function submitAIRequest(
-        address user,
-        bytes calldata basketData,
-        uint256 collateralValue
-    )
+    function submitAIRequest(address user, bytes calldata basketData, uint256 collateralValue)
         external
         payable
         onlyAuthorizedCaller
@@ -221,7 +213,7 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
         // Create Functions request
         FunctionsRequest.Request memory req;
         req.initializeRequestForInlineJavaScript(aiSourceCode);
-        
+
         // Prepare arguments: [basketData, collateralValue, currentPrices]
         string[] memory args = new string[](3);
         args[0] = string(basketData);
@@ -230,12 +222,7 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
         req.setArgs(args);
 
         // Submit the request
-        bytes32 chainlinkRequestId = _sendRequest(
-            req.encodeCBOR(),
-            subscriptionId,
-            gasLimit,
-            donId
-        );
+        bytes32 chainlinkRequestId = _sendRequest(req.encodeCBOR(), subscriptionId, gasLimit, donId);
 
         // Store request info
         requests[chainlinkRequestId] = RequestInfo({
@@ -265,7 +252,7 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
     /// @param err Any error that occurred
     function fulfillRequest(bytes32 requestId, bytes memory response, bytes memory err) internal override {
         RequestInfo storage request = requests[requestId];
-        
+
         if (request.internalRequestId == 0) {
             emit CallbackFailed(0, "Request not found");
             return;
@@ -293,23 +280,23 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
     /// @notice Process AI response (external to handle try/catch)
     function _processAIResponse(bytes32 requestId, bytes memory response) external {
         require(msg.sender == address(this), "Only self");
-        
+
         RequestInfo storage request = requests[requestId];
         string memory responseStr = string(response);
-        
+
         // Parse AI response
         (uint256 ratio, uint256 confidence) = _parseResponse(responseStr);
         ratio = _applySafetyBounds(ratio, confidence);
-        
+
         // Calculate mint amount
         uint256 mintAmount = (request.collateralValue * 10_000) / ratio;
-        
+
         // Mark as processed
         request.processed = true;
-        
+
         // Trigger minting
         _triggerMintingSafe(request.vault, request.user, request.internalRequestId, mintAmount, ratio, confidence);
-        
+
         emit AIResultProcessed(request.internalRequestId, requestId, ratio, confidence, mintAmount);
     }
 
@@ -338,7 +325,7 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
             confidence
         );
 
-        (bool success, bytes memory returnData) = vault.call{gas: 200_000}(callData);
+        (bool success, bytes memory returnData) = vault.call{ gas: 200_000 }(callData);
 
         if (!success) {
             emit CallbackFailed(internalRequestId, _getRevertReason(returnData));
@@ -363,7 +350,7 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
     function requestManualProcessing(uint256 internalRequestId) external {
         bytes32 chainlinkRequestId = internalToChainlinkId[internalRequestId];
         RequestInfo storage request = requests[chainlinkRequestId];
-        
+
         if (request.internalRequestId == 0) revert RequestNotFound();
         if (request.user != msg.sender) revert UnauthorizedCaller();
         if (request.processed) revert AlreadyProcessed();
@@ -383,7 +370,7 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
     ) external onlyAuthorizedManualProcessor {
         bytes32 chainlinkRequestId = internalToChainlinkId[internalRequestId];
         RequestInfo storage request = requests[chainlinkRequestId];
-        
+
         if (request.internalRequestId == 0) revert RequestNotFound();
         if (request.processed) revert AlreadyProcessed();
 
@@ -431,7 +418,7 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
     function emergencyWithdraw(uint256 internalRequestId) external {
         bytes32 chainlinkRequestId = internalToChainlinkId[internalRequestId];
         RequestInfo storage request = requests[chainlinkRequestId];
-        
+
         if (request.internalRequestId == 0) revert RequestNotFound();
         if (request.user != msg.sender) revert UnauthorizedCaller();
         if (request.processed) revert AlreadyProcessed();
@@ -446,7 +433,7 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
     /// @notice Trigger emergency withdrawal in vault
     function _triggerEmergencyWithdrawal(address vault, address user, uint256 internalRequestId) internal {
         bytes memory callData = abi.encodeWithSignature("emergencyWithdraw(address,uint256)", user, internalRequestId);
-        (bool success, bytes memory returnData) = vault.call{gas: 200_000}(callData);
+        (bool success, bytes memory returnData) = vault.call{ gas: 200_000 }(callData);
         if (!success) {
             emit CallbackFailed(internalRequestId, _getRevertReason(returnData));
         }
@@ -598,8 +585,8 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
     function getLatestPrice(string calldata token) external view returns (int256) {
         AggregatorV3Interface priceFeed = priceFeeds[token];
         if (address(priceFeed) == address(0)) revert InvalidPriceFeed();
-        
-        (, int256 price, , , ) = priceFeed.latestRoundData();
+
+        (, int256 price,,,) = priceFeed.latestRoundData();
         return price;
     }
-} 
+}
