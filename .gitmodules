@@ -13,3 +13,6 @@
 [submodule "lib/OAO"]
 	path = lib/OAO
 	url = https://github.com/ora-io/OAO
+[submodule "lib/chainlink"]
+	path = lib/chainlink
+	url = https://github.com/smartcontractkit/chainlink
