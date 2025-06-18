@@ -225,17 +225,17 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
 
         // Store request info
         requests[chainlinkRequestId] = RequestInfo({
-            vault: msg.sender,
-            user: user,
-            basketData: basketData,
-            collateralValue: collateralValue,
-            timestamp: block.timestamp,
-            processed: false,
-            internalRequestId: internalRequestId,
-            retryCount: 0,
-            manualProcessingRequested: false,
-            manualRequestTime: 0
-        });
+                vault: msg.sender,
+                user: user,
+                basketData: basketData,
+                collateralValue: collateralValue,
+                timestamp: block.timestamp,
+                processed: false,
+                internalRequestId: internalRequestId,
+                retryCount: 0,
+                manualProcessingRequested: false,
+                manualRequestTime: 0
+            });
 
         // Store mapping
         internalToChainlinkId[internalRequestId] = chainlinkRequestId;

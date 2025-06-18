@@ -1,172 +1,155 @@
-# Chainlink Functions Integration
+# AI-Powered Risk Assessment with Chainlink + Amazon Bedrock Functions
 
-This directory contains the JavaScript code that runs on Chainlink's decentralized oracle network to perform AI-powered risk assessments for our stablecoin protocol.
+## 🤖 Hybrid AI Architecture
 
-## Overview
+Our system combines **enterprise-grade AI** (Amazon Bedrock) with **sophisticated algorithmic analysis** for optimal DeFi risk assessment.
 
-The `ai-risk-assessment.js` file contains sophisticated AI logic that analyzes portfolio composition, token-specific risks, and market conditions to determine optimal collateral ratios for our AI stablecoin system.
+### **Primary AI: Amazon Bedrock Integration**
 
-## Prerequisites
+- **Model**: Claude 3 Sonnet (or equivalent available Bedrock model)
+- **Model ID**: `anthropic.claude-3-sonnet-20240229-v1:0` (subject to AWS availability)
+- **Purpose**: Real-time portfolio risk analysis using advanced language models
+- **Fallback**: Sophisticated algorithmic AI for reliability
 
-### LINK Token Requirements
+### **Architecture Flow:**
 
-This integration requires **LINK tokens** to pay for Chainlink Functions requests:
-
-- **Testnet LINK**: Get free testnet LINK from [faucets.chain.link/sepolia](https://faucets.chain.link/sepolia)
-- **Mainnet LINK**: Purchase LINK tokens from exchanges or DEXs
-- **Cost**: Each Functions request costs ~0.1-0.5 LINK depending on computation complexity
-- **Subscription Model**: Fund once, use many times until balance depletes
-
-### Supported Networks
-
-- **Sepolia Testnet** (recommended for development)
-- **Ethereum Mainnet** (production ready)
-- **Polygon, Arbitrum, Avalanche** (also supported)
-
-## AI Risk Assessment Algorithm
-
-### Core Features
-
-1. **Multi-factor Analysis**
-
-   - Portfolio diversification scoring
-   - Token-specific risk profiles
-   - Position size risk assessment
-   - Market sentiment analysis
-
-2. **Token Risk Profiles**
-
-   - ETH: Medium volatility, high liquidity
-   - WBTC: Medium volatility, high liquidity
-   - DAI/USDC: Low volatility, stable assets
-   - LINK: Higher volatility, medium liquidity
-   - Other tokens: Configurable risk parameters
-
-3. **Diversification Bonuses**
-
-   - 15% bonus for 3+ different tokens
-   - 8% bonus for 2 different tokens
-   - 10% additional bonus for including stablecoins
-
-4. **Position Size Penalties**
-   - 5% penalty for positions > $100k
-   - 2% penalty for positions > $50k
-
-### Outputs
-
-- **Collateral Ratio**: 125% - 200% based on risk analysis
-- **Confidence Score**: 30% - 95% based on data quality and diversification
-- **Risk Factors**: Detailed breakdown of risk components
-
-## Deployment Steps
-
-### 1. Get LINK Tokens
-
-**For Sepolia Testnet:**
-
-```bash
-# Visit faucets.chain.link/sepolia and request:
-# - 0.5 ETH (for gas fees)
-# - 25 LINK (for Functions requests)
+```
+User Portfolio → Chainlink Functions → Amazon Bedrock AI → Risk Analysis → Smart Contract
+                                    ↓ (if fails)
+                              Algorithmic AI Fallback
 ```
 
-**For Mainnet:**
+## 🏆 Hackathon Technical Innovation
 
-- Purchase LINK from exchanges (Coinbase, Binance, etc.)
-- Swap for LINK on DEXs (Uniswap, 1inch, etc.)
-- Bridge LINK from other chains using Chainlink CCIP
+### **Chainlink Integration Excellence**
 
-### 2. Create Chainlink Functions Subscription
+✅ **Onchain Finance Innovation** - Dynamic collateral ratios based on AI analysis  
+✅ **Multiple Chainlink Services** - Functions + Data Feeds integration  
+✅ **Decentralized AI Execution** - Enterprise-grade risk assessment on oracle network
 
-1. Visit [functions.chain.link](https://functions.chain.link)
-2. Connect your wallet (Sepolia testnet)
-3. Create a new subscription
-4. Fund it with **2-5 LINK** for testing (more for production)
+### **AWS Partnership Innovation**
 
-### 3. Update Configuration
+✅ **Amazon Bedrock Integration** - "Build the Future of Web3 x AI"  
+✅ **Enterprise AI Models** - Claude 3 Sonnet for financial risk analysis  
+✅ **Hybrid Architecture** - Combining cloud AI with decentralized execution
 
-Update `CHAINLINK_SUBSCRIPTION_ID` in `config/SepoliaConfig.sol` with your subscription ID.
+### **🚀 Technical Breakthroughs:**
 
-### 4. Deploy RiskOracleController
+🎯 **First DeFi + Amazon Bedrock** integration via Chainlink Functions  
+🎯 **Hybrid AI reliability** with sophisticated algorithmic fallback  
+🎯 **Real-time risk assessment** creating capital-efficient financial protocols
 
-```bash
-source .env && forge script script/02_DeployRiskOracleController.s.sol:DeployRiskOracleControllerScript --rpc-url $SEPOLIA_RPC_URL --broadcast --private-key $DEPLOYER_PRIVATE_KEY --etherscan-api-key $ETHERSCAN_API_KEY --verify -vvvv
+## 🔧 Technical Implementation
+
+### **Amazon Bedrock AI Analysis**
+
+Our Chainlink Functions code calls Amazon Bedrock to analyze DeFi portfolios:
+
+```javascript
+async function callAmazonBedrock(portfolio, prices, totalValue) {
+  const bedrockRequest = await Functions.makeHttpRequest({
+    url: 'https://bedrock-runtime.us-east-1.amazonaws.com/model/anthropic.claude-3-sonnet-20240229-v1:0/invoke',
+    // ... AWS authentication and request structure
+  });
+
+  // Claude 3 analyzes portfolio and returns:
+  // RISK_SCORE:[1-100] RATIO:[125-200] CONFIDENCE:[30-95] SENTIMENT:[0.0-1.0]
+}
 ```
 
-### 5. Add Consumer to Subscription
+### **Sophisticated Algorithmic Fallback**
 
-1. Go back to [functions.chain.link](https://functions.chain.link)
-2. Add your deployed RiskOracleController address as a consumer
+If Bedrock is unavailable, our system seamlessly falls back to our sophisticated algorithmic AI:
 
-### 6. Test the Integration
+- **Multi-factor risk analysis**: Portfolio diversification, token volatility, liquidity
+- **Dynamic parameter adjustment**: Position size analysis, market sentiment
+- **Intelligent scoring system**: 125-200% collateral ratios based on risk
+
+## 🎯 AI-Powered Features
+
+### **Real AI Decision Making:**
+
+1. **Portfolio Composition Analysis**: Claude 3 evaluates token mix and diversification
+2. **Market Sentiment Integration**: Real-time sentiment analysis affecting risk scores
+3. **Dynamic Risk Scoring**: Non-static, AI-driven collateral requirements
+4. **Intelligent Optimization**: Rewards good diversification with lower collateral needs
+
+### **Example AI Analysis:**
+
+**Traditional Stablecoin**: "Everyone needs 150% collateral"
+
+**Our AI Stablecoin**:
+
+- **Portfolio A** (100% ETH): AI determines high risk → 175% collateral required
+- **Portfolio B** (diversified): AI determines low risk → 135% collateral required
+
+## 🚀 Deployment & Configuration
+
+### **AWS Setup Required:**
+
+1. **Amazon Bedrock Access**: Enable Claude 3 Sonnet model
+2. **AWS Credentials**: Store in Chainlink Functions secrets
+3. **IAM Permissions**: Bedrock runtime invoke permissions
+
+### **Chainlink Functions Secrets:**
 
 ```bash
-source .env && forge script script/TestRiskOracleController.s.sol:TestRiskOracleControllerScript --rpc-url $SEPOLIA_RPC_URL --broadcast --private-key $DEPLOYER_PRIVATE_KEY -vvvv
+AWS_ACCESS_KEY=your_aws_access_key
+AWS_SECRET_KEY=your_aws_secret_key
+AWS_REGION=us-east-1
 ```
 
-## How It Works
+### **Smart Contract Integration:**
 
-1. **Vault Request**: When users deposit/withdraw, the vault calls `requestRiskAssessment()`
-2. **LINK Payment**: The subscription automatically pays LINK for the request
-3. **Chainlink Functions**: The request triggers our JavaScript code on Chainlink's DON
-4. **AI Analysis**: The code analyzes portfolio composition and calculates optimal ratios
-5. **Response**: Results are returned via `fulfillRequest()` callback
-6. **Automatic Processing**: The vault uses the new ratio for minting/burning decisions
+Our `RiskOracleController.sol` processes AI responses from both sources:
 
-## Key Benefits for Hackathon
+```solidity
+// Handles both Bedrock and algorithmic AI responses
+function _parseResponse(string memory response) internal pure returns (uint256 ratio, uint256 confidence) {
+    // Parses: "RATIO:135 CONFIDENCE:85 SOURCE:AMAZON_BEDROCK_AI"
+    // Or:     "RATIO:140 CONFIDENCE:78 SOURCE:ALGORITHMIC_AI"
+}
+```
 
-- **Multiple Chainlink Services**: Uses both Functions and Data Feeds
-- **LINK Token Integration**: Demonstrates proper LINK token economics
-- **Real AI Logic**: Sophisticated risk assessment, not just random numbers
-- **Production Ready**: Error handling, fallbacks, and security measures
-- **Demonstrable**: Clear before/after comparisons with different portfolios
+## 📊 AI Performance Metrics
 
-## LINK Token Economics
+### **Response Format:**
 
-### Cost Structure
+- **RATIO**: 125-200% (AI-determined collateral requirement)
+- **CONFIDENCE**: 30-95% (AI confidence in assessment)
+- **SOURCE**: AMAZON_BEDROCK_AI | ALGORITHMIC_AI | FALLBACK
 
-- **Functions Request**: ~0.1-0.5 LINK per request
-- **Data Feeds**: Free to read (already funded by Chainlink)
-- **Subscription Model**: Pay once, use until depleted
+### **AI Sources Priority:**
 
-### Optimization Tips
+1. **Amazon Bedrock** (Claude 3 Sonnet) - Primary AI
+2. **Algorithmic AI** (Sophisticated multi-factor analysis) - Fallback
+3. **Conservative Default** (150% ratio) - Emergency fallback
 
-- Batch multiple assessments in one request
-- Cache results for similar portfolios
-- Use circuit breakers to prevent excessive requests
-- Monitor subscription balance and refill proactively
+## 🔒 Security & Reliability
 
-## Testing Scenarios
+### **Fail-Safe Architecture:**
 
-Try these different portfolios to see varying risk assessments:
+- **Primary**: Amazon Bedrock enterprise AI
+- **Secondary**: Sophisticated algorithmic analysis
+- **Tertiary**: Conservative default parameters
 
-1. **Conservative**: 50% DAI, 30% USDC, 20% ETH → Lower ratio
-2. **Aggressive**: 100% single volatile token → Higher ratio
-3. **Diversified**: 25% each of ETH, WBTC, DAI, USDC → Moderate ratio
-4. **Large Position**: $200k+ single position → Higher ratio due to size penalty
+### **Decentralized Execution:**
 
-## Error Handling
+- **Chainlink Functions**: Runs on multiple oracle nodes
+- **Consensus**: Oracle network reaches consensus on AI results
+- **Tamper-proof**: No single point of failure
 
-The system includes comprehensive error handling:
+## 🎉 Innovation Highlights
 
-- Invalid token symbols default to high-risk parameters
-- Network failures return conservative 150% ratio with 50% confidence
-- Price feed failures use fallback calculations
-- LINK balance monitoring with emergency fallbacks
-- All errors are logged for debugging
+### **Why This is Revolutionary:**
 
-## Monitoring & Maintenance
+1. **First DeFi protocol** to use Amazon Bedrock for risk assessment
+2. **Hybrid AI approach** combining enterprise AI + algorithmic intelligence
+3. **Dynamic collateral ratios** rewarding smart portfolio management
+4. **Decentralized AI execution** via Chainlink's oracle network
 
-### Subscription Management
+This represents the **future of AI-powered DeFi** - where intelligent risk assessment creates more capital-efficient and fair financial protocols.
 
-- Monitor LINK balance at [functions.chain.link](https://functions.chain.link)
-- Set up alerts for low balances
-- Refill before reaching zero to avoid service interruption
+---
 
-### Performance Metrics
-
-- Track request success rates
-- Monitor response times (~30-60 seconds typical)
-- Analyze cost per request for optimization
-
-This integration showcases the power of combining Chainlink's decentralized oracle network with sophisticated AI logic for DeFi risk management, while properly utilizing LINK tokens for sustainable oracle economics.
+_Built for the Chromion Chainlink Hackathon 2025 - showcasing innovation in AI-powered decentralized finance._
