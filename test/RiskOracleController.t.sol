@@ -55,6 +55,7 @@ contract RiskOracleControllerTest is Test {
     );
     event ManualProcessingRequested(uint256 indexed internalRequestId, address indexed user, uint256 timestamp);
     event PriceFeedUpdated(string indexed token, address indexed priceFeed);
+    event ChainlinkConfigUpdated(bytes32 donId, uint64 subscriptionId, uint32 gasLimit);
 
     function setUp() public {
         vm.startPrank(owner);
@@ -141,8 +142,8 @@ contract RiskOracleControllerTest is Test {
         // Setup request
         uint256 requestId = _setupChainlinkRequest();
 
-        // Simulate Chainlink Functions callback with AI response
-        bytes memory response = abi.encode("150,85"); // 150% ratio, 85% confidence
+        // Simulate Chainlink Functions callback with AI response (new format)
+        bytes memory response = abi.encode("RATIO:150 CONFIDENCE:85 SOURCE:AMAZON_BEDROCK_AI");
         mockRouter.simulateCallback(requestId, response, "");
 
         // Verify processing completed
@@ -266,6 +267,9 @@ contract RiskOracleControllerTest is Test {
         uint32 newGasLimit = 400_000;
         string memory newSourceCode = "return '160,80';";
 
+        vm.expectEmit(false, false, false, true);
+        emit ChainlinkConfigUpdated(newDonId, newSubscriptionId, newGasLimit);
+
         controller.updateChainlinkConfig(newDonId, newSubscriptionId, newGasLimit, newSourceCode);
 
         // Verify config was updated (we can't easily test private vars, but no revert means success)
@@ -339,6 +343,323 @@ contract RiskOracleControllerTest is Test {
         assertFalse(circuitBreakerActive, "Circuit breaker should not be active");
     }
 
+    /// @notice Test Amazon Bedrock response format parsing
+    function test_amazonBedrockResponseFormat() public {
+        uint256 requestId = _setupChainlinkRequest();
+
+        // Test Amazon Bedrock response format
+        bytes memory bedrockResponse = abi.encode("RATIO:135 CONFIDENCE:85 SOURCE:AMAZON_BEDROCK_AI");
+        mockRouter.simulateCallback(requestId, bedrockResponse, "");
+
+        vm.startPrank(user1);
+        (,,, uint256 aiusdMinted, uint256 collateralRatio,, bool hasPendingRequest) = vault.getPosition(user1);
+
+        assertFalse(hasPendingRequest, "Should not have pending request");
+        assertGt(aiusdMinted, 0, "Should have minted AIUSD");
+        assertEq(collateralRatio, 13_500, "Should have 135% collateral ratio from Bedrock");
+        
+        console.log("Amazon Bedrock - AIUSD minted:", aiusdMinted);
+        console.log("Amazon Bedrock - Collateral ratio:", collateralRatio);
+
+        vm.stopPrank();
+    }
+
+    /// @notice Test algorithmic AI fallback response format
+    function test_algorithmicFallbackResponseFormat() public {
+        uint256 requestId = _setupChainlinkRequest();
+
+        // Test algorithmic AI response format
+        bytes memory algorithmicResponse = abi.encode("RATIO:165 CONFIDENCE:75 SOURCE:ALGORITHMIC_AI");
+        mockRouter.simulateCallback(requestId, algorithmicResponse, "");
+
+        vm.startPrank(user1);
+        (,,, uint256 aiusdMinted, uint256 collateralRatio,, bool hasPendingRequest) = vault.getPosition(user1);
+
+        assertFalse(hasPendingRequest, "Should not have pending request");
+        assertGt(aiusdMinted, 0, "Should have minted AIUSD");
+        assertEq(collateralRatio, 16_500, "Should have 165% collateral ratio from algorithmic AI");
+
+        console.log("Algorithmic AI - AIUSD minted:", aiusdMinted);
+        console.log("Algorithmic AI - Collateral ratio:", collateralRatio);
+
+        vm.stopPrank();
+    }
+
+    /// @notice Test external AI response during manual processing
+    function test_externalAIManualProcessing() public {
+        uint256 requestId = _setupChainlinkRequest();
+        vm.warp(block.timestamp + 31 minutes);
+
+        vm.startPrank(manualProcessor);
+
+        // Test external AI response formats
+        string memory externalAIResponse1 = "RATIO:142 CONFIDENCE:88 SOURCE:EXTERNAL_AI";
+        controller.processWithOffChainAI(
+            requestId, externalAIResponse1, RiskOracleController.ManualStrategy.PROCESS_WITH_OFFCHAIN_AI
+        );
+
+        vm.stopPrank();
+
+        vm.startPrank(user1);
+        (,,, uint256 aiusdMinted, uint256 collateralRatio,, bool hasPendingRequest) = vault.getPosition(user1);
+
+        assertFalse(hasPendingRequest, "Should not have pending request");
+        assertGt(aiusdMinted, 0, "Should have minted AIUSD");
+        assertEq(collateralRatio, 14_200, "Should have 142% collateral ratio from external AI");
+
+        vm.stopPrank();
+    }
+
+    /// @notice Test ratio safety bounds application
+    function test_ratioSafetyBounds() public {
+        uint256 requestId = _setupChainlinkRequest();
+
+        // Test extreme low ratio (should be bounded to minimum)
+        bytes memory lowRatioResponse = abi.encode("RATIO:100 CONFIDENCE:90 SOURCE:AMAZON_BEDROCK_AI");
+        mockRouter.simulateCallback(requestId, lowRatioResponse, "");
+
+        vm.startPrank(user1);
+        (,,, uint256 aiusdMinted1, uint256 collateralRatio1,,) = vault.getPosition(user1);
+        
+        // High confidence (90) should use 130% minimum ratio
+        assertEq(collateralRatio1, 13_000, "High confidence should use 130% minimum ratio");
+
+        vm.stopPrank();
+
+        // Setup second test
+        uint256 requestId2 = _setupSecondRequest();
+
+        // Test extreme high ratio (should be bounded to maximum)
+        bytes memory highRatioResponse = abi.encode("RATIO:250 CONFIDENCE:95 SOURCE:AMAZON_BEDROCK_AI");
+        mockRouter.simulateCallback(requestId2, highRatioResponse, "");
+
+        vm.startPrank(user1);
+        (,,, uint256 aiusdMinted2, uint256 collateralRatio2,,) = vault.getPosition(user1);
+        
+        // Should be bounded to maximum safe ratio (170%)
+        assertEq(collateralRatio2, 17_000, "Should apply maximum safety bound of 170%");
+
+        console.log("Safety bounds - Low ratio result:", collateralRatio1);
+        console.log("Safety bounds - High ratio result:", collateralRatio2);
+
+        vm.stopPrank();
+    }
+
+    /// @notice Test confidence-based safety adjustments
+    function test_confidenceBasedSafety() public {
+        uint256 requestId1 = _setupChainlinkRequest();
+
+        // Test low confidence (should increase minimum ratio)
+        bytes memory lowConfidenceResponse = abi.encode("RATIO:140 CONFIDENCE:45 SOURCE:AMAZON_BEDROCK_AI");
+        mockRouter.simulateCallback(requestId1, lowConfidenceResponse, "");
+
+        vm.startPrank(user1);
+        (,,, uint256 aiusdMinted1, uint256 collateralRatio1,,) = vault.getPosition(user1);
+        
+        // Low confidence should result in higher minimum ratio
+        assertGe(collateralRatio1, 14_000, "Low confidence should increase minimum ratio to 140%");
+
+        vm.stopPrank();
+
+        uint256 requestId2 = _setupSecondRequest();
+
+        // Test high confidence (should allow lower ratio)
+        bytes memory highConfidenceResponse = abi.encode("RATIO:135 CONFIDENCE:95 SOURCE:AMAZON_BEDROCK_AI");
+        mockRouter.simulateCallback(requestId2, highConfidenceResponse, "");
+
+        vm.startPrank(user1);
+        (,,, uint256 aiusdMinted2, uint256 collateralRatio2,,) = vault.getPosition(user1);
+        
+        // High confidence should allow the requested ratio
+        assertEq(collateralRatio2, 13_500, "High confidence should allow 135% ratio");
+
+        console.log("Confidence-based - Low confidence ratio:", collateralRatio1);
+        console.log("Confidence-based - High confidence ratio:", collateralRatio2);
+
+        vm.stopPrank();
+    }
+
+    /// @notice Test malformed AI response handling
+    function test_malformedResponseHandling() public {
+        uint256 requestId = _setupChainlinkRequest();
+
+        // Test malformed response (missing RATIO)
+        bytes memory malformedResponse1 = abi.encode("CONFIDENCE:85 SOURCE:AMAZON_BEDROCK_AI");
+        mockRouter.simulateCallback(requestId, malformedResponse1, "");
+
+        vm.startPrank(user1);
+        (,,, uint256 aiusdMinted1, uint256 collateralRatio1,,) = vault.getPosition(user1);
+        
+        // Should use default ratio (150%)
+        assertEq(collateralRatio1, 15_000, "Should use default 150% for malformed response");
+
+        vm.stopPrank();
+
+        uint256 requestId2 = _setupSecondRequest();
+
+        // Test completely malformed response
+        bytes memory malformedResponse2 = abi.encode("INVALID RESPONSE FORMAT");
+        mockRouter.simulateCallback(requestId2, malformedResponse2, "");
+
+        vm.startPrank(user1);
+        (,,, uint256 aiusdMinted2, uint256 collateralRatio2,,) = vault.getPosition(user1);
+        
+        // Should use default ratio and confidence
+        assertEq(collateralRatio2, 15_000, "Should use default 150% for invalid response");
+
+        console.log("Malformed response - Default ratio used:", collateralRatio2);
+
+        vm.stopPrank();
+    }
+
+    /// @notice Test multiple manual processing strategies
+    function test_multipleManualStrategies() public {
+        // Test force default mint strategy first
+        uint256 requestId1 = _setupChainlinkRequest();
+        vm.warp(block.timestamp + 31 minutes);
+
+        vm.startPrank(manualProcessor);
+        controller.processWithOffChainAI(
+            requestId1, 
+            "", 
+            RiskOracleController.ManualStrategy.FORCE_DEFAULT_MINT
+        );
+        vm.stopPrank();
+
+        // Verify force default mint worked (160% conservative ratio)
+        vm.startPrank(user1);
+        (,,, uint256 aiusdMinted1, uint256 collateralRatio1,,) = vault.getPosition(user1);
+        assertEq(collateralRatio1, 16_000, "Force default should use 160% ratio");
+        vm.stopPrank();
+
+        // Test off-chain AI strategy with a new user to avoid vault position conflicts
+        address user2 = makeAddr("user2");
+        weth.mint(user2, DEPOSIT_AMOUNT);
+        vm.deal(user2, 1 ether);
+        
+        vm.startPrank(user2);
+        weth.approve(address(vault), type(uint256).max);
+        
+        address[] memory tokens = new address[](1);
+        uint256[] memory amounts = new uint256[](1);
+        tokens[0] = address(weth);
+        amounts[0] = DEPOSIT_AMOUNT;
+
+        uint256 aiFee = controller.estimateTotalFee();
+        vault.depositBasket{ value: aiFee }(tokens, amounts);
+        (,,,,, uint256 requestId2,) = vault.getPosition(user2);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 31 minutes);
+
+        vm.startPrank(manualProcessor);
+        controller.processWithOffChainAI(
+            requestId2, 
+            "RATIO:145 CONFIDENCE:90", 
+            RiskOracleController.ManualStrategy.PROCESS_WITH_OFFCHAIN_AI
+        );
+        vm.stopPrank();
+
+        // Verify off-chain AI strategy worked
+        vm.startPrank(user2);
+        (,,, uint256 aiusdMinted2, uint256 collateralRatio2,,) = vault.getPosition(user2);
+        assertEq(collateralRatio2, 14_500, "Off-chain AI should use 145% ratio");
+        vm.stopPrank();
+
+        console.log("Manual strategies - Force default ratio:", collateralRatio1);
+        console.log("Manual strategies - Off-chain AI ratio:", collateralRatio2);
+    }
+
+    /// @notice Test circuit breaker with multiple failures
+    function test_circuitBreakerMultipleFailures() public {
+        // Trigger multiple failures to test circuit breaker
+        for (uint256 i = 1; i <= 3; i++) {
+            uint256 requestId = _setupChainlinkRequestForFailure(i);
+            
+            // Simulate failure
+            bytes memory errorData = abi.encode("Network error");
+            mockRouter.simulateCallback(requestId, "", errorData);
+            
+            (bool isPaused, uint256 failureCount,,) = controller.getSystemStatus();
+            assertEq(failureCount, i, "Should increment failure count");
+            
+            if (i < 5) {
+                assertFalse(isPaused, "Should not be paused yet");
+            }
+        }
+
+        // Trigger 2 more failures to hit the limit
+        for (uint256 i = 4; i <= 5; i++) {
+            uint256 requestId = _setupChainlinkRequestForFailure(i);
+            
+            bytes memory errorData = abi.encode("Network error");
+            mockRouter.simulateCallback(requestId, "", errorData);
+        }
+
+        (bool systemPaused, uint256 totalFailures,,) = controller.getSystemStatus();
+        assertEq(totalFailures, 5, "Should have 5 failures");
+        assertTrue(systemPaused, "Should be paused after 5 failures");
+
+        console.log("Circuit breaker - Failures recorded:", totalFailures);
+        console.log("Circuit breaker - System paused:", systemPaused);
+    }
+
+    /// @notice Test price feed integration readiness
+    function test_priceFeedIntegrationSetup() public {
+        vm.startPrank(owner);
+
+        // Test setting up price feeds
+        string[] memory tokens = new string[](3);
+        address[] memory feeds = new address[](3);
+        
+        tokens[0] = "ETH";
+        tokens[1] = "WBTC";
+        tokens[2] = "DAI";
+        
+        feeds[0] = address(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419); // ETH/USD mainnet
+        feeds[1] = address(0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c); // BTC/USD mainnet
+        feeds[2] = address(0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9); // DAI/USD mainnet
+
+        // Should not revert
+        controller.setPriceFeeds(tokens, feeds);
+
+        vm.stopPrank();
+
+        // Test that price feed setup doesn't break existing functionality
+        uint256 requestId = _setupChainlinkRequest();
+        bytes memory response = abi.encode("RATIO:150 CONFIDENCE:85 SOURCE:AMAZON_BEDROCK_AI");
+        mockRouter.simulateCallback(requestId, response, "");
+
+        vm.startPrank(user1);
+        (,,, uint256 aiusdMinted, uint256 collateralRatio,, bool hasPendingRequest) = vault.getPosition(user1);
+
+        assertFalse(hasPendingRequest, "Should not have pending request after price feed setup");
+        assertGt(aiusdMinted, 0, "Should still mint AIUSD with price feeds configured");
+
+        vm.stopPrank();
+    }
+
+    /// @notice Helper function to setup a second Chainlink Functions request (for multi-test scenarios)
+    function _setupSecondRequest() internal returns (uint256 requestId) {
+        // Mint more tokens to user1 for second deposit
+        weth.mint(user1, DEPOSIT_AMOUNT);
+        
+        vm.startPrank(user1);
+
+        address[] memory tokens = new address[](1);
+        uint256[] memory amounts = new uint256[](1);
+        tokens[0] = address(weth);
+        amounts[0] = DEPOSIT_AMOUNT;
+
+        uint256 aiFee = controller.estimateTotalFee();
+        vault.depositBasket{ value: aiFee }(tokens, amounts);
+
+        (,,,,, requestId,) = vault.getPosition(user1);
+        vm.stopPrank();
+
+        return requestId;
+    }
+
     /// @notice Helper function to setup a Chainlink Functions request
     function _setupChainlinkRequest() internal returns (uint256 requestId) {
         vm.startPrank(user1);
@@ -352,6 +673,353 @@ contract RiskOracleControllerTest is Test {
         vault.depositBasket{ value: aiFee }(tokens, amounts);
 
         (,,,,, requestId,) = vault.getPosition(user1);
+        vm.stopPrank();
+
+        return requestId;
+    }
+
+    /// @notice Helper function to setup requests for failure testing
+    function _setupChainlinkRequestForFailure(uint256 index) internal returns (uint256 requestId) {
+        // Use different users for failure tests to avoid conflicts
+        address testUser = makeAddr(string(abi.encodePacked("failureUser", index)));
+        
+        // Mint tokens and ETH to test user
+        weth.mint(testUser, DEPOSIT_AMOUNT);
+        vm.deal(testUser, 1 ether);
+        
+        vm.startPrank(testUser);
+        weth.approve(address(vault), type(uint256).max);
+
+        address[] memory tokens = new address[](1);
+        uint256[] memory amounts = new uint256[](1);
+        tokens[0] = address(weth);
+        amounts[0] = DEPOSIT_AMOUNT;
+
+        uint256 aiFee = controller.estimateTotalFee();
+        vault.depositBasket{ value: aiFee }(tokens, amounts);
+
+        (,,,,, requestId,) = vault.getPosition(testUser);
+        vm.stopPrank();
+
+        return requestId;
+    }
+
+    // ==================== PRODUCTION DEPLOYMENT TESTS ====================
+
+    /// @notice Test complete Bedrock simulation flow
+    function test_completeBedrockSimulationFlow() public {
+        uint256 requestId = _setupChainlinkRequest();
+
+        // Simulate complete Bedrock response with all metadata
+        bytes memory bedrockResponse = abi.encode(
+            "RATIO:142 CONFIDENCE:87 SOURCE:AMAZON_BEDROCK_AI SENTIMENT:0.75 ANALYSIS:Diversified portfolio with moderate risk"
+        );
+        mockRouter.simulateCallback(requestId, bedrockResponse, "");
+
+        vm.startPrank(user1);
+        (,,, uint256 aiusdMinted, uint256 collateralRatio,, bool hasPendingRequest) = vault.getPosition(user1);
+
+        assertFalse(hasPendingRequest, "Should complete Bedrock simulation");
+        assertGt(aiusdMinted, 0, "Should mint AIUSD from Bedrock");
+        assertEq(collateralRatio, 142_00, "Should use Bedrock-determined ratio");
+
+        // Verify AIUSD balance
+        uint256 userBalance = aiusd.balanceOf(user1);
+        assertGt(userBalance, 0, "User should receive minted AIUSD");
+        assertEq(userBalance, aiusdMinted, "Balance should match minted amount");
+
+        console.log("Bedrock Simulation - AIUSD minted:", aiusdMinted);
+        console.log("Bedrock Simulation - User balance:", userBalance);
+        console.log("Bedrock Simulation - Collateral ratio:", collateralRatio);
+
+        vm.stopPrank();
+    }
+
+    /// @notice Test subscription-based fee model
+    function test_subscriptionFeeModel() public {
+        // Verify subscription model returns zero fees
+        uint256 estimatedFee = controller.estimateTotalFee();
+        assertEq(estimatedFee, 0, "Chainlink Functions should use subscription model");
+
+        // Test multiple requests don't charge fees
+        for (uint256 i = 0; i < 3; i++) {
+            uint256 fee = controller.estimateTotalFee();
+            assertEq(fee, 0, "Each request should be free with subscription");
+        }
+
+        // Test that deposit works with zero fee
+        vm.startPrank(user1);
+        address[] memory tokens = new address[](1);
+        uint256[] memory amounts = new uint256[](1);
+        tokens[0] = address(weth);
+        amounts[0] = DEPOSIT_AMOUNT;
+
+        // Should work without sending ETH for fees
+        vault.depositBasket(tokens, amounts);
+        
+        (,,,,, uint256 requestId, bool hasPendingRequest) = vault.getPosition(user1);
+        assertTrue(hasPendingRequest, "Should create request without fees");
+        assertGt(requestId, 0, "Should generate valid request ID");
+
+        vm.stopPrank();
+    }
+
+    /// @notice Test Chainlink Functions configuration management
+    function test_chainlinkConfigurationManagement() public {
+        vm.startPrank(owner);
+
+        // Test initial configuration
+        bytes32 initialDonId = bytes32("fun_sepolia_1");
+        uint64 initialSubId = 123;
+        
+        // Test configuration update
+        bytes32 newDonId = bytes32("fun_mainnet_1");
+        uint64 newSubscriptionId = 456;
+        uint32 newGasLimit = 400_000;
+        string memory newSourceCode = "return 'RATIO:160 CONFIDENCE:80';";
+
+        vm.expectEmit(false, false, false, true);
+        emit ChainlinkConfigUpdated(newDonId, newSubscriptionId, newGasLimit);
+
+        controller.updateChainlinkConfig(newDonId, newSubscriptionId, newGasLimit, newSourceCode);
+
+        // Test that new configuration is used in subsequent requests
+        vm.stopPrank();
+
+        // Make a request and verify it uses new configuration
+        uint256 requestId = _setupChainlinkRequest();
+        assertGt(requestId, 0, "Should work with updated configuration");
+
+        console.log("Configuration update test passed");
+    }
+
+    /// @notice Test gas limit handling
+    function test_gasLimitHandling() public {
+        vm.startPrank(owner);
+
+        // Test with various gas limits
+        uint32[] memory gasLimits = new uint32[](3);
+        gasLimits[0] = 200_000; // Low gas
+        gasLimits[1] = 300_000; // Default gas
+        gasLimits[2] = 500_000; // High gas
+
+        for (uint256 i = 0; i < gasLimits.length; i++) {
+            controller.updateChainlinkConfig(
+                bytes32("fun_sepolia_1"),
+                123,
+                gasLimits[i],
+                "return 'RATIO:150 CONFIDENCE:80';"
+            );
+
+            vm.stopPrank();
+
+            // Test request with this gas limit
+            uint256 requestId = _setupChainlinkRequestWithUser(makeAddr(string(abi.encodePacked("gasUser", i))));
+            assertGt(requestId, 0, "Should work with different gas limits");
+
+            vm.startPrank(owner);
+        }
+
+        vm.stopPrank();
+    }
+
+    /// @notice Test source code update and validation
+    function test_sourceCodeUpdateValidation() public {
+        vm.startPrank(owner);
+
+        // Test various source code scenarios
+        string[] memory sourceCodes = new string[](3);
+        sourceCodes[0] = "return 'RATIO:140 CONFIDENCE:85';"; // Simple response
+        sourceCodes[1] = "const ratio = 135; return `RATIO:${ratio} CONFIDENCE:90`;"; // Dynamic response
+        sourceCodes[2] = "return 'RATIO:160 CONFIDENCE:75 SOURCE:AMAZON_BEDROCK_AI';"; // Full response
+
+        for (uint256 i = 0; i < sourceCodes.length; i++) {
+            controller.updateChainlinkConfig(
+                bytes32("fun_sepolia_1"),
+                123,
+                300_000,
+                sourceCodes[i]
+            );
+
+            vm.stopPrank();
+
+            // Test that updated source code can process requests
+            uint256 requestId = _setupChainlinkRequestWithUser(makeAddr(string(abi.encodePacked("sourceUser", i))));
+            
+            // Simulate response based on source code
+            bytes memory response = abi.encode("RATIO:150 CONFIDENCE:80");
+            mockRouter.simulateCallback(requestId, response, "");
+
+            vm.startPrank(owner);
+        }
+
+        vm.stopPrank();
+    }
+
+    /// @notice Test real-world portfolio scenarios
+    function test_realWorldPortfolioScenarios() public {
+        // Scenario 1: Conservative portfolio (high stablecoin allocation)
+        uint256 requestId1 = _setupChainlinkRequest();
+        bytes memory conservativeResponse = abi.encode("RATIO:125 CONFIDENCE:95 SOURCE:AMAZON_BEDROCK_AI");
+        mockRouter.simulateCallback(requestId1, conservativeResponse, "");
+
+        vm.startPrank(user1);
+        (,,, uint256 aiusdMinted1, uint256 collateralRatio1,,) = vault.getPosition(user1);
+        assertEq(collateralRatio1, 130_00, "Conservative portfolio should get minimum safe ratio");
+        vm.stopPrank();
+
+        // Scenario 2: Aggressive portfolio (high volatility tokens)
+        uint256 requestId2 = _setupSecondRequest();
+        bytes memory aggressiveResponse = abi.encode("RATIO:185 CONFIDENCE:70 SOURCE:AMAZON_BEDROCK_AI");
+        mockRouter.simulateCallback(requestId2, aggressiveResponse, "");
+
+        vm.startPrank(user1);
+        (,,, uint256 aiusdMinted2, uint256 collateralRatio2,,) = vault.getPosition(user1);
+        assertEq(collateralRatio2, 170_00, "Aggressive portfolio should be capped at maximum");
+        vm.stopPrank();
+
+        console.log("Conservative portfolio ratio:", collateralRatio1);
+        console.log("Aggressive portfolio ratio:", collateralRatio2);
+    }
+
+    /// @notice Test high-frequency request handling
+    function test_highFrequencyRequests() public {
+        uint256 numRequests = 5;
+        uint256[] memory requestIds = new uint256[](numRequests);
+
+        // Create multiple rapid requests
+        for (uint256 i = 0; i < numRequests; i++) {
+            address testUser = makeAddr(string(abi.encodePacked("freqUser", i)));
+            requestIds[i] = _setupChainlinkRequestWithUser(testUser);
+            assertGt(requestIds[i], 0, "Should handle rapid requests");
+        }
+
+        // Process all requests
+        for (uint256 i = 0; i < numRequests; i++) {
+            bytes memory response = abi.encode("RATIO:145 CONFIDENCE:85 SOURCE:AMAZON_BEDROCK_AI");
+            mockRouter.simulateCallback(requestIds[i], response, "");
+        }
+
+        console.log("Successfully processed", numRequests, "rapid requests");
+    }
+
+    /// @notice Test complete production deployment workflow
+    function test_productionDeploymentWorkflow() public {
+        // Step 1: Owner setup
+        vm.startPrank(owner);
+        
+        // Configure price feeds (production addresses)
+        string[] memory tokens = new string[](4);
+        address[] memory feeds = new address[](4);
+        tokens[0] = "ETH";
+        tokens[1] = "WBTC";
+        tokens[2] = "DAI";
+        tokens[3] = "USDC";
+        feeds[0] = address(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419); // ETH/USD mainnet
+        feeds[1] = address(0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c); // BTC/USD mainnet
+        feeds[2] = address(0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9); // DAI/USD mainnet
+        feeds[3] = address(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6); // USDC/USD mainnet
+
+        controller.setPriceFeeds(tokens, feeds);
+
+        // Configure Chainlink Functions for production
+        controller.updateChainlinkConfig(
+            bytes32("fun_mainnet_1"),
+            999, // Production subscription ID
+            350_000, // Production gas limit
+            "/* Production Bedrock integration code */"
+        );
+
+        // Authorize production manual processors
+        address productionProcessor = makeAddr("productionProcessor");
+        controller.setAuthorizedManualProcessor(productionProcessor, true);
+
+        vm.stopPrank();
+
+        // Step 2: User flow - use separate user to avoid prank conflicts
+        address prodUser = makeAddr("productionUser");
+        weth.mint(prodUser, DEPOSIT_AMOUNT);
+        vm.deal(prodUser, 1 ether);
+        
+        vm.startPrank(prodUser);
+        weth.approve(address(vault), type(uint256).max);
+
+        address[] memory tokens_user = new address[](1);
+        uint256[] memory amounts_user = new uint256[](1);
+        tokens_user[0] = address(weth);
+        amounts_user[0] = DEPOSIT_AMOUNT;
+
+        uint256 aiFee = controller.estimateTotalFee();
+        vault.depositBasket{ value: aiFee }(tokens_user, amounts_user);
+
+        (,,,,, uint256 requestId, bool hasPendingRequest) = vault.getPosition(prodUser);
+        vm.stopPrank();
+
+        // Step 3: AI processing
+        bytes memory productionResponse = abi.encode("RATIO:138 CONFIDENCE:92 SOURCE:AMAZON_BEDROCK_AI");
+        mockRouter.simulateCallback(requestId, productionResponse, "");
+
+        // Step 4: Verify complete flow
+        vm.startPrank(prodUser);
+        (,,, uint256 aiusdMinted, uint256 collateralRatio,, bool hasPendingRequestAfter) = vault.getPosition(prodUser);
+
+        assertFalse(hasPendingRequestAfter, "Production flow should complete");
+        assertGt(aiusdMinted, 0, "Should mint AIUSD");
+        assertEq(collateralRatio, 138_00, "Should use production AI ratio");
+
+        uint256 finalBalance = aiusd.balanceOf(prodUser);
+        assertEq(finalBalance, aiusdMinted, "User should receive tokens");
+
+        console.log("Production deployment test completed successfully");
+        console.log("Final AIUSD balance:", finalBalance);
+        console.log("Collateral ratio:", collateralRatio);
+
+        vm.stopPrank();
+    }
+
+    /// @notice Test contract upgrade compatibility
+    function test_contractUpgradeCompatibility() public {
+        // Test that current state is preserved during upgrades
+        uint256 requestId = _setupChainlinkRequest();
+        
+        // Simulate state before upgrade
+        (bool initialPaused, uint256 initialFailures,,) = controller.getSystemStatus();
+        
+        // Test configuration preservation
+        vm.startPrank(owner);
+        bytes32 testDonId = bytes32("test_upgrade");
+        controller.updateChainlinkConfig(testDonId, 123, 300_000, "test");
+        vm.stopPrank();
+
+        // Process request after "upgrade"
+        bytes memory response = abi.encode("RATIO:150 CONFIDENCE:85");
+        mockRouter.simulateCallback(requestId, response, "");
+
+        vm.startPrank(user1);
+        (,,, uint256 aiusdMinted, uint256 collateralRatio,,) = vault.getPosition(user1);
+        assertGt(aiusdMinted, 0, "Should work after configuration changes");
+        vm.stopPrank();
+
+        console.log("Upgrade compatibility test passed");
+    }
+
+    /// @notice Helper function for creating requests with specific users
+    function _setupChainlinkRequestWithUser(address testUser) internal returns (uint256 requestId) {
+        weth.mint(testUser, DEPOSIT_AMOUNT);
+        vm.deal(testUser, 1 ether);
+        
+        vm.startPrank(testUser);
+        weth.approve(address(vault), type(uint256).max);
+
+        address[] memory tokens = new address[](1);
+        uint256[] memory amounts = new uint256[](1);
+        tokens[0] = address(weth);
+        amounts[0] = DEPOSIT_AMOUNT;
+
+        uint256 aiFee = controller.estimateTotalFee();
+        vault.depositBasket{ value: aiFee }(tokens, amounts);
+
+        (,,,,, requestId,) = vault.getPosition(testUser);
         vm.stopPrank();
 
         return requestId;

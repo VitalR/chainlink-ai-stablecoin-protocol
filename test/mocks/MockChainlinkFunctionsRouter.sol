@@ -7,6 +7,7 @@ contract MockChainlinkFunctionsRouter {
     uint256 private requestCounter = 1;
 
     mapping(bytes32 => address) public requestCallbacks;
+    mapping(uint256 => bytes32) public internalToChainlinkId; // Track internal ID to Chainlink ID mapping
 
     event RequestSent(bytes32 indexed id);
 
@@ -18,8 +19,13 @@ contract MockChainlinkFunctionsRouter {
         uint32, // callbackGasLimit
         bytes32 // donId
     ) external returns (bytes32 requestId) {
-        requestId = keccak256(abi.encodePacked(block.timestamp, requestCounter++));
+        requestId = keccak256(abi.encodePacked(block.timestamp, requestCounter));
         requestCallbacks[requestId] = msg.sender;
+        
+        // Store mapping of internal ID to Chainlink ID
+        internalToChainlinkId[requestCounter] = requestId;
+        
+        requestCounter++;
 
         emit RequestSent(requestId);
         return requestId;
@@ -27,15 +33,21 @@ contract MockChainlinkFunctionsRouter {
 
     /// @notice Simulate callback for testing
     function simulateCallback(uint256 internalRequestId, bytes memory response, bytes memory err) external {
-        // Convert internal ID to bytes32 for mock purposes
-        bytes32 requestId = keccak256(abi.encodePacked(internalRequestId));
+        // Get the actual Chainlink request ID
+        bytes32 requestId = internalToChainlinkId[internalRequestId];
+        
+        if (requestId == bytes32(0)) {
+            revert("Request ID not found");
+        }
+        
         address callback = requestCallbacks[requestId];
 
         if (callback != address(0)) {
-            // Call the fulfillRequest function on the callback contract
+            // Call the handleOracleFulfillment function (correct Chainlink Functions method)
             (bool success,) =
-                callback.call(abi.encodeWithSignature("fulfillRequest(bytes32,bytes,bytes)", requestId, response, err));
+                callback.call(abi.encodeWithSignature("handleOracleFulfillment(bytes32,bytes,bytes)", requestId, response, err));
             require(success, "Callback failed");
         }
     }
 }
+ 

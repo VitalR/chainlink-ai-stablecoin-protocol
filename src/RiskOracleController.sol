@@ -49,7 +49,13 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
     /// @notice Manual processing configuration
     uint256 public constant MANUAL_PROCESSING_DELAY = 30 minutes;
     uint256 public constant EMERGENCY_WITHDRAWAL_DELAY = 2 hours;
-    uint256 public constant DEFAULT_CONSERVATIVE_RATIO = 16_000; // 160%
+    uint256 public constant DEFAULT_CONSERVATIVE_RATIO = 160_00; // 160% in basis points
+
+    /// @notice Ratio constants in basis points (100_00 = 100%)
+    uint256 public constant MAX_BPS = 100_00; // 10,000 = 100%
+    uint256 public constant MIN_COLLATERAL_RATIO = 100_00; // 100% - absolute minimum to prevent undercollateralization
+    uint256 public constant SAFETY_MIN_RATIO = 130_00; // 130% - safety minimum for high confidence
+    uint256 public constant SAFETY_MAX_RATIO = 170_00; // 170% - safety maximum
 
     /// @notice Chainlink Functions configuration
     bytes32 public donId;
@@ -287,8 +293,10 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
         (uint256 ratio, uint256 confidence) = _parseResponse(responseStr);
         ratio = _applySafetyBounds(ratio, confidence);
 
-        // Calculate mint amount
-        uint256 mintAmount = (request.collateralValue * 10_000) / ratio;
+        // Calculate mint amount using basis points math
+        // mintAmount = collateralValue * BASIS_POINTS_SCALE / ratio
+        // Example: $20,000 collateral at 150% ratio = $20,000 * 10,000 / 15,000 = $13,333 AIUSD
+        uint256 mintAmount = (request.collateralValue * MAX_BPS) / ratio;
 
         // Mark as processed
         request.processed = true;
@@ -386,7 +394,7 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
         if (strategy == ManualStrategy.PROCESS_WITH_OFFCHAIN_AI) {
             (ratio, confidence) = _parseResponse(offChainAIResponse);
             ratio = _applySafetyBounds(ratio, confidence);
-            mintAmount = (request.collateralValue * 10_000) / ratio;
+            mintAmount = (request.collateralValue * MAX_BPS) / ratio;
 
             emit OffChainAIProcessed(internalRequestId, msg.sender, offChainAIResponse, ratio, confidence);
         } else if (strategy == ManualStrategy.EMERGENCY_WITHDRAWAL) {
@@ -398,7 +406,7 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
         } else if (strategy == ManualStrategy.FORCE_DEFAULT_MINT) {
             ratio = DEFAULT_CONSERVATIVE_RATIO;
             confidence = 50;
-            mintAmount = (request.collateralValue * 10_000) / ratio;
+            mintAmount = (request.collateralValue * MAX_BPS) / ratio;
         } else {
             revert InvalidManualStrategy();
         }
@@ -438,19 +446,20 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
         }
     }
 
-    /// @notice Parse AI response (same logic as before)
+    /// @notice Parse AI response with improved basis points handling
     function _parseResponse(string memory response) internal pure returns (uint256 ratio, uint256 confidence) {
-        ratio = 15_000; // 150% default
+        ratio = 150_00; // 150% default in basis points
         confidence = 50;
 
         bytes memory data = bytes(response);
 
-        // Parse RATIO:XXX
+        // Parse RATIO:XXX (expecting percentage, convert to basis points)
         for (uint256 i = 0; i < data.length - 6; i++) {
             if (_matches(data, i, "RATIO:")) {
                 uint256 parsedRatio = _extractNumber(data, i + 6, 3);
-                if (parsedRatio >= 125 && parsedRatio <= 200) {
-                    ratio = parsedRatio * 100;
+                // Accept any parsed ratio > 0 and convert percentage to basis points
+                if (parsedRatio > 0) {
+                    ratio = parsedRatio * 100; // Convert percentage to basis points (130% -> 13,000)
                 }
                 break;
             }
@@ -466,19 +475,23 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
         }
     }
 
-    /// @notice Apply safety bounds to AI ratio
+    /// @notice Apply safety bounds to AI ratio with explicit basis points handling
     function _applySafetyBounds(uint256 aiRatio, uint256 confidence) internal pure returns (uint256) {
-        uint256 minRatio = 13_000; // 130%
-        uint256 maxRatio = 17_000; // 170%
+        uint256 minRatio = SAFETY_MIN_RATIO; // 130% in basis points
+        uint256 maxRatio = SAFETY_MAX_RATIO; // 170% in basis points
 
+        // Adjust minimum ratio based on confidence (lower confidence = higher minimum)
         if (confidence < 60) {
-            minRatio = 14_000; // 140% for low confidence
+            minRatio = 140_00; // 140% for low confidence
         } else if (confidence < 80) {
-            minRatio = 13_500; // 135% for medium confidence
+            minRatio = 135_00; // 135% for medium confidence
         }
 
+        // Ensure we never go below 100% collateralization (prevent undercollateralization)
+        if (aiRatio < MIN_COLLATERAL_RATIO) return minRatio;
         if (aiRatio < minRatio) return minRatio;
         if (aiRatio > maxRatio) return maxRatio;
+        
         return aiRatio;
     }
 
