@@ -357,7 +357,7 @@ contract RiskOracleControllerTest is Test {
         assertFalse(hasPendingRequest, "Should not have pending request");
         assertGt(aiusdMinted, 0, "Should have minted AIUSD");
         assertEq(collateralRatio, 13_500, "Should have 135% collateral ratio from Bedrock");
-        
+
         console.log("Amazon Bedrock - AIUSD minted:", aiusdMinted);
         console.log("Amazon Bedrock - Collateral ratio:", collateralRatio);
 
@@ -420,7 +420,7 @@ contract RiskOracleControllerTest is Test {
 
         vm.startPrank(user1);
         (,,, uint256 aiusdMinted1, uint256 collateralRatio1,,) = vault.getPosition(user1);
-        
+
         // High confidence (90) should use 130% minimum ratio
         assertEq(collateralRatio1, 13_000, "High confidence should use 130% minimum ratio");
 
@@ -435,7 +435,7 @@ contract RiskOracleControllerTest is Test {
 
         vm.startPrank(user1);
         (,,, uint256 aiusdMinted2, uint256 collateralRatio2,,) = vault.getPosition(user1);
-        
+
         // Should be bounded to maximum safe ratio (170%)
         assertEq(collateralRatio2, 17_000, "Should apply maximum safety bound of 170%");
 
@@ -455,7 +455,7 @@ contract RiskOracleControllerTest is Test {
 
         vm.startPrank(user1);
         (,,, uint256 aiusdMinted1, uint256 collateralRatio1,,) = vault.getPosition(user1);
-        
+
         // Low confidence should result in higher minimum ratio
         assertGe(collateralRatio1, 14_000, "Low confidence should increase minimum ratio to 140%");
 
@@ -469,7 +469,7 @@ contract RiskOracleControllerTest is Test {
 
         vm.startPrank(user1);
         (,,, uint256 aiusdMinted2, uint256 collateralRatio2,,) = vault.getPosition(user1);
-        
+
         // High confidence should allow the requested ratio
         assertEq(collateralRatio2, 13_500, "High confidence should allow 135% ratio");
 
@@ -489,7 +489,7 @@ contract RiskOracleControllerTest is Test {
 
         vm.startPrank(user1);
         (,,, uint256 aiusdMinted1, uint256 collateralRatio1,,) = vault.getPosition(user1);
-        
+
         // Should use default ratio (150%)
         assertEq(collateralRatio1, 15_000, "Should use default 150% for malformed response");
 
@@ -503,7 +503,7 @@ contract RiskOracleControllerTest is Test {
 
         vm.startPrank(user1);
         (,,, uint256 aiusdMinted2, uint256 collateralRatio2,,) = vault.getPosition(user1);
-        
+
         // Should use default ratio and confidence
         assertEq(collateralRatio2, 15_000, "Should use default 150% for invalid response");
 
@@ -519,11 +519,7 @@ contract RiskOracleControllerTest is Test {
         vm.warp(block.timestamp + 31 minutes);
 
         vm.startPrank(manualProcessor);
-        controller.processWithOffChainAI(
-            requestId1, 
-            "", 
-            RiskOracleController.ManualStrategy.FORCE_DEFAULT_MINT
-        );
+        controller.processWithOffChainAI(requestId1, "", RiskOracleController.ManualStrategy.FORCE_DEFAULT_MINT);
         vm.stopPrank();
 
         // Verify force default mint worked (160% conservative ratio)
@@ -536,10 +532,10 @@ contract RiskOracleControllerTest is Test {
         address user2 = makeAddr("user2");
         weth.mint(user2, DEPOSIT_AMOUNT);
         vm.deal(user2, 1 ether);
-        
+
         vm.startPrank(user2);
         weth.approve(address(vault), type(uint256).max);
-        
+
         address[] memory tokens = new address[](1);
         uint256[] memory amounts = new uint256[](1);
         tokens[0] = address(weth);
@@ -554,9 +550,7 @@ contract RiskOracleControllerTest is Test {
 
         vm.startPrank(manualProcessor);
         controller.processWithOffChainAI(
-            requestId2, 
-            "RATIO:145 CONFIDENCE:90", 
-            RiskOracleController.ManualStrategy.PROCESS_WITH_OFFCHAIN_AI
+            requestId2, "RATIO:145 CONFIDENCE:90", RiskOracleController.ManualStrategy.PROCESS_WITH_OFFCHAIN_AI
         );
         vm.stopPrank();
 
@@ -575,14 +569,14 @@ contract RiskOracleControllerTest is Test {
         // Trigger multiple failures to test circuit breaker
         for (uint256 i = 1; i <= 3; i++) {
             uint256 requestId = _setupChainlinkRequestForFailure(i);
-            
+
             // Simulate failure
             bytes memory errorData = abi.encode("Network error");
             mockRouter.simulateCallback(requestId, "", errorData);
-            
+
             (bool isPaused, uint256 failureCount,,) = controller.getSystemStatus();
             assertEq(failureCount, i, "Should increment failure count");
-            
+
             if (i < 5) {
                 assertFalse(isPaused, "Should not be paused yet");
             }
@@ -591,7 +585,7 @@ contract RiskOracleControllerTest is Test {
         // Trigger 2 more failures to hit the limit
         for (uint256 i = 4; i <= 5; i++) {
             uint256 requestId = _setupChainlinkRequestForFailure(i);
-            
+
             bytes memory errorData = abi.encode("Network error");
             mockRouter.simulateCallback(requestId, "", errorData);
         }
@@ -611,11 +605,11 @@ contract RiskOracleControllerTest is Test {
         // Test setting up price feeds
         string[] memory tokens = new string[](3);
         address[] memory feeds = new address[](3);
-        
+
         tokens[0] = "ETH";
         tokens[1] = "WBTC";
         tokens[2] = "DAI";
-        
+
         feeds[0] = address(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419); // ETH/USD mainnet
         feeds[1] = address(0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c); // BTC/USD mainnet
         feeds[2] = address(0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9); // DAI/USD mainnet
@@ -643,7 +637,7 @@ contract RiskOracleControllerTest is Test {
     function _setupSecondRequest() internal returns (uint256 requestId) {
         // Mint more tokens to user1 for second deposit
         weth.mint(user1, DEPOSIT_AMOUNT);
-        
+
         vm.startPrank(user1);
 
         address[] memory tokens = new address[](1);
@@ -682,11 +676,11 @@ contract RiskOracleControllerTest is Test {
     function _setupChainlinkRequestForFailure(uint256 index) internal returns (uint256 requestId) {
         // Use different users for failure tests to avoid conflicts
         address testUser = makeAddr(string(abi.encodePacked("failureUser", index)));
-        
+
         // Mint tokens and ETH to test user
         weth.mint(testUser, DEPOSIT_AMOUNT);
         vm.deal(testUser, 1 ether);
-        
+
         vm.startPrank(testUser);
         weth.approve(address(vault), type(uint256).max);
 
@@ -721,7 +715,7 @@ contract RiskOracleControllerTest is Test {
 
         assertFalse(hasPendingRequest, "Should complete Bedrock simulation");
         assertGt(aiusdMinted, 0, "Should mint AIUSD from Bedrock");
-        assertEq(collateralRatio, 142_00, "Should use Bedrock-determined ratio");
+        assertEq(collateralRatio, 14_200, "Should use Bedrock-determined ratio");
 
         // Verify AIUSD balance
         uint256 userBalance = aiusd.balanceOf(user1);
@@ -756,7 +750,7 @@ contract RiskOracleControllerTest is Test {
 
         // Should work without sending ETH for fees
         vault.depositBasket(tokens, amounts);
-        
+
         (,,,,, uint256 requestId, bool hasPendingRequest) = vault.getPosition(user1);
         assertTrue(hasPendingRequest, "Should create request without fees");
         assertGt(requestId, 0, "Should generate valid request ID");
@@ -771,7 +765,7 @@ contract RiskOracleControllerTest is Test {
         // Test initial configuration
         bytes32 initialDonId = bytes32("fun_sepolia_1");
         uint64 initialSubId = 123;
-        
+
         // Test configuration update
         bytes32 newDonId = bytes32("fun_mainnet_1");
         uint64 newSubscriptionId = 456;
@@ -805,10 +799,7 @@ contract RiskOracleControllerTest is Test {
 
         for (uint256 i = 0; i < gasLimits.length; i++) {
             controller.updateChainlinkConfig(
-                bytes32("fun_sepolia_1"),
-                123,
-                gasLimits[i],
-                "return 'RATIO:150 CONFIDENCE:80';"
+                bytes32("fun_sepolia_1"), 123, gasLimits[i], "return 'RATIO:150 CONFIDENCE:80';"
             );
 
             vm.stopPrank();
@@ -834,18 +825,13 @@ contract RiskOracleControllerTest is Test {
         sourceCodes[2] = "return 'RATIO:160 CONFIDENCE:75 SOURCE:AMAZON_BEDROCK_AI';"; // Full response
 
         for (uint256 i = 0; i < sourceCodes.length; i++) {
-            controller.updateChainlinkConfig(
-                bytes32("fun_sepolia_1"),
-                123,
-                300_000,
-                sourceCodes[i]
-            );
+            controller.updateChainlinkConfig(bytes32("fun_sepolia_1"), 123, 300_000, sourceCodes[i]);
 
             vm.stopPrank();
 
             // Test that updated source code can process requests
             uint256 requestId = _setupChainlinkRequestWithUser(makeAddr(string(abi.encodePacked("sourceUser", i))));
-            
+
             // Simulate response based on source code
             bytes memory response = abi.encode("RATIO:150 CONFIDENCE:80");
             mockRouter.simulateCallback(requestId, response, "");
@@ -865,7 +851,7 @@ contract RiskOracleControllerTest is Test {
 
         vm.startPrank(user1);
         (,,, uint256 aiusdMinted1, uint256 collateralRatio1,,) = vault.getPosition(user1);
-        assertEq(collateralRatio1, 130_00, "Conservative portfolio should get minimum safe ratio");
+        assertEq(collateralRatio1, 13_000, "Conservative portfolio should get minimum safe ratio");
         vm.stopPrank();
 
         // Scenario 2: Aggressive portfolio (high volatility tokens)
@@ -875,7 +861,7 @@ contract RiskOracleControllerTest is Test {
 
         vm.startPrank(user1);
         (,,, uint256 aiusdMinted2, uint256 collateralRatio2,,) = vault.getPosition(user1);
-        assertEq(collateralRatio2, 170_00, "Aggressive portfolio should be capped at maximum");
+        assertEq(collateralRatio2, 17_000, "Aggressive portfolio should be capped at maximum");
         vm.stopPrank();
 
         console.log("Conservative portfolio ratio:", collateralRatio1);
@@ -907,7 +893,7 @@ contract RiskOracleControllerTest is Test {
     function test_productionDeploymentWorkflow() public {
         // Step 1: Owner setup
         vm.startPrank(owner);
-        
+
         // Configure price feeds (production addresses)
         string[] memory tokens = new string[](4);
         address[] memory feeds = new address[](4);
@@ -940,7 +926,7 @@ contract RiskOracleControllerTest is Test {
         address prodUser = makeAddr("productionUser");
         weth.mint(prodUser, DEPOSIT_AMOUNT);
         vm.deal(prodUser, 1 ether);
-        
+
         vm.startPrank(prodUser);
         weth.approve(address(vault), type(uint256).max);
 
@@ -965,7 +951,7 @@ contract RiskOracleControllerTest is Test {
 
         assertFalse(hasPendingRequestAfter, "Production flow should complete");
         assertGt(aiusdMinted, 0, "Should mint AIUSD");
-        assertEq(collateralRatio, 138_00, "Should use production AI ratio");
+        assertEq(collateralRatio, 13_800, "Should use production AI ratio");
 
         uint256 finalBalance = aiusd.balanceOf(prodUser);
         assertEq(finalBalance, aiusdMinted, "User should receive tokens");
@@ -981,10 +967,10 @@ contract RiskOracleControllerTest is Test {
     function test_contractUpgradeCompatibility() public {
         // Test that current state is preserved during upgrades
         uint256 requestId = _setupChainlinkRequest();
-        
+
         // Simulate state before upgrade
         (bool initialPaused, uint256 initialFailures,,) = controller.getSystemStatus();
-        
+
         // Test configuration preservation
         vm.startPrank(owner);
         bytes32 testDonId = bytes32("test_upgrade");
@@ -1007,7 +993,7 @@ contract RiskOracleControllerTest is Test {
     function _setupChainlinkRequestWithUser(address testUser) internal returns (uint256 requestId) {
         weth.mint(testUser, DEPOSIT_AMOUNT);
         vm.deal(testUser, 1 ether);
-        
+
         vm.startPrank(testUser);
         weth.approve(address(vault), type(uint256).max);
 

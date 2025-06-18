@@ -5,65 +5,84 @@ import { ERC20Burnable, ERC20 } from "@openzeppelin/token/ERC20/extensions/ERC20
 import { ERC20Permit } from "@openzeppelin/token/ERC20/extensions/ERC20Permit.sol";
 import { OwnedThreeStep } from "@solbase/auth/OwnedThreeStep.sol";
 
-/// @title AIStablecoin (AIUSD)
-/// @notice AI-optimized stablecoin with dynamic collateral ratios.
+/// @title AIStablecoin - AI-Powered USD Stablecoin (AIUSD)
+/// @notice Decentralized stablecoin with AI-driven dynamic collateral ratios and vault-based minting
+/// @dev ERC20 token with burn capabilities, permit functionality, and vault authorization system
 contract AIStablecoin is ERC20Burnable, ERC20Permit, OwnedThreeStep {
-    /// @notice Mapping of addresses recognized as authorizedVaults .
+    // =============================================================
+    //                 CONFIGURATION & STORAGE
+    // =============================================================
+
+    /// @notice State mapping for vault authorization and access control
+    /// @dev Maps vault addresses to their authorization status for minting and burning operations
     mapping(address => bool) public authorizedVaults;
 
-    /// @notice Emitted when a vault is added.
-    event VaultAdded(address indexed vault);
+    // =============================================================
+    //                    EVENTS & ERRORS
+    // =============================================================
 
-    /// @notice Emitted when a vault is removed.
+    /// @notice Vault management events
+    event VaultAdded(address indexed vault);
     event VaultRemoved(address indexed vault);
 
-    /// @notice Emitted when an invalid address is provided.
+    /// @notice Validation errors
     error InvalidAddress(address account);
-
-    /// @notice Emitted when an invalid amount is provided.
     error InvalidAmount(uint256 amount);
-
-    /// @notice Emitted when an unauthorized account is provided.
     error UnauthorizedAccount();
 
-    /// @notice Ensures the function is called by a trusted pool only.
+    // =============================================================
+    //                  DEPLOYMENT & INITIALIZATION
+    // =============================================================
+
+    /// @notice Deploy and initialize the AI USD Stablecoin token
+    /// @dev Sets up ERC20 token with name, symbol, permit functionality, and owner authorization
+    constructor() ERC20("AI USD Stablecoin", "AIUSD") ERC20Permit("AI USD Stablecoin") OwnedThreeStep(msg.sender) { }
+
+    // =============================================================
+    //                     ACCESS CONTROL
+    // =============================================================
+
+    /// @notice Restrict function access to authorized vault contracts only
     modifier onlyAuthorizedVaults() {
         if (!authorizedVaults[msg.sender]) revert UnauthorizedAccount();
         _;
     }
 
-    /// @notice Initializes the AIStablecoin contract.
-    /// @dev Sets the name and symbol of the token, and the owner of the contract.
-    constructor() ERC20("AI USD Stablecoin", "AIUSD") ERC20Permit("AI USD Stablecoin") OwnedThreeStep(msg.sender) { }
+    // =============================================================
+    //                        CORE LOGIC
+    // =============================================================
 
-    /// @notice Mint AIUSD tokens (only authorized vaults).
+    /// @notice Mint AIUSD tokens to specified address
+    /// @dev Only authorized vaults can mint tokens based on collateral deposits and AI assessments
+    /// @param _to Address to receive newly minted AIUSD tokens
+    /// @param _amount Number of tokens to mint (18 decimal places)
+    /// @return success Whether the minting operation completed successfully
     function mint(address _to, uint256 _amount) external onlyAuthorizedVaults returns (bool) {
         if (_to == address(0)) revert InvalidAddress(_to);
         if (_amount == 0) revert InvalidAmount(_amount);
+
         _mint(_to, _amount);
         return true;
     }
 
-    /// @notice Burn AIUSD tokens.
-    /// @dev Overrides the `burn` function of ERC20Burnable to include custom logic and can only be called by an
-    /// authorized vault.
-    /// @param _amount The number of tokens to burn.
+    /// @notice Burn AIUSD tokens from caller's balance
+    /// @dev Overrides ERC20Burnable burn function with vault-only restriction and validation
+    /// @param _amount Number of tokens to burn from caller's balance
     function burn(uint256 _amount) public override onlyAuthorizedVaults {
         if (_amount == 0) revert InvalidAmount(_amount);
         _burn(msg.sender, _amount);
     }
 
-    /// @notice Burns a specific amount of AIUSD tokens from an address.
-    /// @dev Overrides the `burnFrom` function of ERC20Burnable to include custom logic and can only be called by an
-    /// authorized vault. Checks allowance before burning.
-    /// @param _from The address from which tokens will be burned.
-    /// @param _amount The number of tokens to burn.
+    /// @notice Burn AIUSD tokens from specified address with allowance check
+    /// @dev Overrides ERC20Burnable burnFrom with vault-only access and comprehensive validation
+    /// @param _from Address from which tokens will be burned
+    /// @param _amount Number of tokens to burn from specified address
     function burnFrom(address _from, uint256 _amount) public override onlyAuthorizedVaults {
         uint256 balance = balanceOf(_from);
         if (_amount == 0) revert InvalidAmount(_amount);
         if (balance < _amount) revert InvalidAmount(_amount);
 
-        // Check allowance (standard ERC20 pattern)
+        // Handle allowance checking with infinite approval optimization
         uint256 currentAllowance = allowance(_from, msg.sender);
         if (currentAllowance != type(uint256).max) {
             if (currentAllowance < _amount) revert InvalidAmount(_amount);
@@ -73,18 +92,22 @@ contract AIStablecoin is ERC20Burnable, ERC20Permit, OwnedThreeStep {
         _burn(_from, _amount);
     }
 
-    /// @notice Add authorized vault.
-    /// @dev Only the owner can add authorized vaults.
-    /// @param _vault The address of the vault to add.
+    // =============================================================
+    //                     MANAGER LOGIC
+    // =============================================================
+
+    /// @notice Authorize vault contract for AIUSD minting and burning operations
+    /// @dev Only contract owner can grant vault authorization for token operations
+    /// @param _vault Address of the vault contract to authorize
     function addVault(address _vault) external onlyOwner {
         if (_vault == address(0)) revert InvalidAddress(_vault);
         authorizedVaults[_vault] = true;
         emit VaultAdded(_vault);
     }
 
-    /// @notice Remove authorized vault.
-    /// @dev Only the owner can remove authorized vaults.
-    /// @param _vault The address of the vault to remove.
+    /// @notice Revoke vault authorization for AIUSD operations
+    /// @dev Only contract owner can remove vault authorization and disable token operations
+    /// @param _vault Address of the vault contract to deauthorize
     function removeVault(address _vault) external onlyOwner {
         if (_vault == address(0)) revert InvalidAddress(_vault);
         authorizedVaults[_vault] = false;

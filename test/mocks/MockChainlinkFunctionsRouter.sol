@@ -21,10 +21,10 @@ contract MockChainlinkFunctionsRouter {
     ) external returns (bytes32 requestId) {
         requestId = keccak256(abi.encodePacked(block.timestamp, requestCounter));
         requestCallbacks[requestId] = msg.sender;
-        
+
         // Store mapping of internal ID to Chainlink ID
         internalToChainlinkId[requestCounter] = requestId;
-        
+
         requestCounter++;
 
         emit RequestSent(requestId);
@@ -35,19 +35,19 @@ contract MockChainlinkFunctionsRouter {
     function simulateCallback(uint256 internalRequestId, bytes memory response, bytes memory err) external {
         // Get the actual Chainlink request ID
         bytes32 requestId = internalToChainlinkId[internalRequestId];
-        
+
         if (requestId == bytes32(0)) {
             revert("Request ID not found");
         }
-        
+
         address callback = requestCallbacks[requestId];
 
         if (callback != address(0)) {
             // Call the handleOracleFulfillment function (correct Chainlink Functions method)
-            (bool success,) =
-                callback.call(abi.encodeWithSignature("handleOracleFulfillment(bytes32,bytes,bytes)", requestId, response, err));
+            (bool success,) = callback.call(
+                abi.encodeWithSignature("handleOracleFulfillment(bytes32,bytes,bytes)", requestId, response, err)
+            );
             require(success, "Callback failed");
         }
     }
 }
- 

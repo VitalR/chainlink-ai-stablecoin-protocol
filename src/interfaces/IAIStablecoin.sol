@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import { IERC20 } from "@openzeppelin/token/ERC20/IERC20.sol";
 
 /// @title IAIStablecoin Interface
 /// @notice Interface for the AI-driven stablecoin contract
