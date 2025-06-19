@@ -6,6 +6,9 @@ import { FunctionsClient } from "@chainlink/functions/v1_3_0/FunctionsClient.sol
 import { FunctionsRequest } from "@chainlink/functions/v1_0_0/libraries/FunctionsRequest.sol";
 import { OwnedThreeStep } from "@solbase/auth/OwnedThreeStep.sol";
 
+import { IRiskOracleController } from "./interfaces/IRiskOracleController.sol";
+import { SepoliaConfig } from "../config/SepoliaConfig.sol";
+
 /// @title RiskOracleController - AI-Powered Risk Assessment Engine
 /// @notice Integrates Chainlink Functions with Amazon Bedrock AI for dynamic collateral ratio determination
 /// @dev Handles AI-powered risk assessment using Chainlink Functions for optimal collateral ratios with comprehensive
@@ -523,6 +526,41 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
         authorizedManualProcessors[processor] = authorized;
     }
 
+    /// @notice Setup Sepolia testnet price feeds for all supported tokens
+    /// @dev Call this function after deployment to configure all available Chainlink feeds
+    function setupSepoliaFeeds() external onlyOwner {
+        string[] memory tokens = new string[](5);
+        address[] memory feeds = new address[](5);
+
+        // BTC/USD feed on Sepolia (WBTC uses BTC price)
+        tokens[0] = "BTC";
+        feeds[0] = SepoliaConfig.BTC_USD_PRICE_FEED;
+
+        // ETH/USD feed on Sepolia
+        tokens[1] = "ETH";
+        feeds[1] = SepoliaConfig.ETH_USD_PRICE_FEED;
+
+        // LINK/USD feed on Sepolia
+        tokens[2] = "LINK";
+        feeds[2] = SepoliaConfig.LINK_USD_PRICE_FEED;
+
+        // DAI/USD feed on Sepolia
+        tokens[3] = "DAI";
+        feeds[3] = SepoliaConfig.DAI_USD_PRICE_FEED;
+
+        // USDC/USD feed on Sepolia
+        tokens[4] = "USDC";
+        feeds[4] = SepoliaConfig.USDC_USD_PRICE_FEED;
+
+        // Set price feeds directly to avoid external call context issues
+        require(tokens.length == feeds.length, "Array length mismatch");
+        for (uint256 i = 0; i < tokens.length; i++) {
+            if (feeds[i] == address(0)) revert InvalidPriceFeed();
+            priceFeeds[tokens[i]] = AggregatorV3Interface(feeds[i]);
+            emit PriceFeedUpdated(tokens[i], feeds[i]);
+        }
+    }
+
     // =============================================================
     //                  EXTERNAL VIEW FUNCTIONS
     // =============================================================
@@ -571,17 +609,133 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
         return price;
     }
 
+    /// @notice Test helper function to expose internal price retrieval
+    /// @dev Only for testing - exposes _getCurrentPricesJson for unit tests
+    /// @return JSON string containing current prices
+    function getCurrentPricesForTesting() external view returns (string memory) {
+        return _getCurrentPricesJson();
+    }
+
     // =============================================================
     //                INTERNAL/PRIVATE VIEW FUNCTIONS
     // =============================================================
 
     /// @notice Generate current market prices in JSON format for AI analysis
-    /// @dev Provides real-time pricing data to enhance AI risk assessment accuracy
+    /// @dev Provides real-time pricing using Chainlink feeds with fallback protection for all supported tokens
     /// @return JSON string containing current prices for supported tokens
     function _getCurrentPricesJson() internal view returns (string memory) {
-        // This would be expanded based on your supported tokens
-        // For now, returning a simple structure
-        return '{"ETH": 2000, "WBTC": 30000, "DAI": 1, "USDC": 1}';
+        string memory json = "{";
+
+        // BTC - Use real Chainlink feed if available
+        json = string(abi.encodePacked(json, '"BTC": ', _getSafePrice("BTC", 30_000)));
+        json = string(abi.encodePacked(json, ", "));
+
+        // ETH - Use real Chainlink feed if available
+        json = string(abi.encodePacked(json, '"ETH": ', _getSafePrice("ETH", 2000)));
+        json = string(abi.encodePacked(json, ", "));
+
+        // LINK - Use real Chainlink feed if available
+        json = string(abi.encodePacked(json, '"LINK": ', _getSafePrice("LINK", 15)));
+        json = string(abi.encodePacked(json, ", "));
+
+        // DAI - Use real Chainlink feed with stable fallback
+        json = string(abi.encodePacked(json, '"DAI": ', _getSafePrice("DAI", 1)));
+        json = string(abi.encodePacked(json, ", "));
+
+        // USDC - Use real Chainlink feed with stable fallback
+        json = string(abi.encodePacked(json, '"USDC": ', _getSafePrice("USDC", 1)));
+        json = string(abi.encodePacked(json, "}"));
+
+        return json;
+    }
+
+    /// @notice Safely get price from Chainlink feed with fallback protection
+    /// @param token Token symbol to get price for
+    /// @param fallbackPrice Fallback price if Chainlink feed fails or is unavailable
+    /// @return Price as string, either from Chainlink or fallback
+    function _getSafePrice(string memory token, uint256 fallbackPrice) internal view returns (string memory) {
+        AggregatorV3Interface priceFeed = priceFeeds[token];
+
+        // If no feed configured, use fallback
+        if (address(priceFeed) == address(0)) {
+            return _uint2str(fallbackPrice);
+        }
+
+        // Check if contract exists (has code) before trying to call it
+        uint256 size;
+        address feedAddress = address(priceFeed);
+        assembly {
+            size := extcodesize(feedAddress)
+        }
+        if (size == 0) {
+            // Contract doesn't exist, use fallback
+            return _uint2str(fallbackPrice);
+        }
+
+        try priceFeed.latestRoundData() returns (
+            uint80, /* roundId */
+            int256 price,
+            uint256, /* startedAt */
+            uint256 updatedAt,
+            uint80 /* answeredInRound */
+        ) {
+            // Validate price data
+            if (price <= 0) {
+                return _uint2str(fallbackPrice);
+            }
+
+            // Check if price is stale (older than 1 hour)
+            if (block.timestamp - updatedAt > 3600) {
+                return _uint2str(fallbackPrice);
+            }
+
+            // Convert from 8 decimals to whole number (price feeds use 8 decimals)
+            uint256 priceUint = uint256(price) / 1e8;
+
+            // Sanity check: ensure price is within reasonable bounds
+            if (_isReasonablePrice(token, priceUint)) {
+                return _uint2str(priceUint);
+            } else {
+                return _uint2str(fallbackPrice);
+            }
+        } catch {
+            // If feed call fails, use fallback
+            return _uint2str(fallbackPrice);
+        }
+    }
+
+    /// @notice Check if price is within reasonable bounds to prevent oracle manipulation
+    /// @param token Token symbol being checked
+    /// @param price Price to validate
+    /// @return Whether the price is within reasonable bounds
+    function _isReasonablePrice(string memory token, uint256 price) internal pure returns (bool) {
+        // Convert string to bytes32 for efficient comparison
+        bytes32 tokenHash = keccak256(abi.encodePacked(token));
+        bytes32 btcHash = keccak256(abi.encodePacked("BTC"));
+        bytes32 ethHash = keccak256(abi.encodePacked("ETH"));
+        bytes32 linkHash = keccak256(abi.encodePacked("LINK"));
+        bytes32 daiHash = keccak256(abi.encodePacked("DAI"));
+        bytes32 usdcHash = keccak256(abi.encodePacked("USDC"));
+
+        if (tokenHash == btcHash) {
+            // BTC should be between $10k and $200k
+            return price >= 10_000 && price <= 200_000;
+        } else if (tokenHash == ethHash) {
+            // ETH should be between $100 and $20k
+            return price >= 100 && price <= 20_000;
+        } else if (tokenHash == linkHash) {
+            // LINK should be between $1 and $100
+            return price >= 1 && price <= 100;
+        } else if (tokenHash == daiHash) {
+            // DAI should be between $0.90 and $1.10 (stablecoin)
+            return price == 1; // We use $1 for simplicity in our system
+        } else if (tokenHash == usdcHash) {
+            // USDC should be between $0.90 and $1.10 (stablecoin)
+            return price == 1; // We use $1 for simplicity in our system
+        }
+
+        // For unknown tokens, allow any positive price
+        return price > 0;
     }
 
     /// @notice Execute AIUSD minting through vault callback with error handling

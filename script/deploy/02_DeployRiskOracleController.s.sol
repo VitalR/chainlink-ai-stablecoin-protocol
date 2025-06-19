@@ -34,15 +34,15 @@ contract DeployRiskOracleControllerScript is Script {
         // Deploy RiskOracleController with correct parameter order
         controller = new RiskOracleController(functionsRouter, donId, subscriptionId, aiSourceCode);
 
-        // Setup price feeds using arrays
+        // Setup price feeds using arrays (alternative: call controller.setupSepoliaFeeds() for convenience)
         string[] memory tokens = new string[](5);
         address[] memory feeds = new address[](5);
 
-        tokens[0] = "ETH";
-        feeds[0] = SepoliaConfig.ETH_USD_PRICE_FEED;
+        tokens[0] = "BTC"; // BTC price feed used for WBTC token pricing
+        feeds[0] = SepoliaConfig.BTC_USD_PRICE_FEED;
 
-        tokens[1] = "WBTC";
-        feeds[1] = SepoliaConfig.BTC_USD_PRICE_FEED;
+        tokens[1] = "ETH";
+        feeds[1] = SepoliaConfig.ETH_USD_PRICE_FEED;
 
         tokens[2] = "LINK";
         feeds[2] = SepoliaConfig.LINK_USD_PRICE_FEED;
@@ -56,7 +56,7 @@ contract DeployRiskOracleControllerScript is Script {
         controller.setPriceFeeds(tokens, feeds);
 
         console.log("RiskOracleController deployed at:", address(controller));
-        console.log("Price feeds configured for 5 tokens");
+        console.log("Price feeds configured for 5 tokens (BTC, ETH, LINK, DAI, USDC)");
 
         vm.stopBroadcast();
     }
