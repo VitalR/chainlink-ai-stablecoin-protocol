@@ -6,21 +6,21 @@ library SepoliaConfig {
     uint256 public constant CHAIN_ID = 11_155_111;
 
     // Core system contracts (update after deployment)
-    address public constant AI_STABLECOIN = 0xb4036672FE9f82ff0B9149beBD6721538e085ffa;
-    address public constant RISK_ORACLE_CONTROLLER = 0x067b6c730DBFc6F180A70eae12D45305D12fe58A;
-    address public constant COLLATERAL_VAULT = 0x3b8Fd1cB957B96e9082c270938B1C1C083e3fb94;
+    address public constant AI_STABLECOIN = 0xf0072115e6b861682e73a858fBEE36D512960c6f; // UPDATED
+    address public constant RISK_ORACLE_CONTROLLER = 0x5027a6b9f01E0b05Aa56E04A435029a8e9c810af; // UPDATED
+    address public constant COLLATERAL_VAULT = 0x459246db90DaA8959eF7F5842F257930a5C262B3; // UPDATED
 
-    // Mock tokens for testing
-    address public constant MOCK_DAI = 0xF19061331751efd44eCd2E9f49903b7D68651368;
-    address public constant MOCK_WETH = 0x7f4eb26422b35D3AA5a72D7711aD12905bb69F59;
-    address public constant MOCK_WBTC = 0x4a098CaCd639aE0CC70F6f03d4A01608286b155d;
-    address public constant MOCK_USDC = 0x0000000000000000000000000000000000000000; // To be set after deployment
+    // Mock tokens for testing - UPDATED with fresh deployment
+    address public constant MOCK_DAI = 0xDE27C8D88E8F949A7ad02116F4D8BAca459af5D4;
+    address public constant MOCK_WETH = 0xe1cb3cFbf87E27c52192d90A49DB6B331C522846;
+    address public constant MOCK_WBTC = 0x4b62e33297A6D7eBe7CBFb92A0Bf175209467022;
+    address public constant MOCK_USDC = 0x3bf2384010dCb178B8c19AE30a817F9ea1BB2c94;
 
     // Chainlink Functions Configuration
     address public constant CHAINLINK_FUNCTIONS_ROUTER = 0xb83E47C2bC239B3bf370bc41e1459A34b41238D0;
     bytes32 public constant CHAINLINK_DON_ID = 0x66756e2d657468657265756d2d7365706f6c69612d3100000000000000000000;
     uint32 public constant CHAINLINK_GAS_LIMIT = 300000;
-    uint64 public constant CHAINLINK_SUBSCRIPTION_ID = 2912; // Updated with actual subscription ID
+    uint64 public constant CHAINLINK_SUBSCRIPTION_ID = 5075; // UPDATED with your new subscription
 
     // Chainlink Data Feeds (Sepolia Testnet)
     address public constant ETH_USD_PRICE_FEED = 0x694AA1769357215DE4FAC081bf1f309aDC325306;
