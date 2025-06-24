@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
+import { AggregatorV3Interface } from "@chainlink/contracts/shared/interfaces/AggregatorV3Interface.sol";
 import { IERC20 } from "@openzeppelin/token/ERC20/IERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin/utils/ReentrancyGuard.sol";
 import { OwnedThreeStep } from "@solbase/auth/OwnedThreeStep.sol";
+import { SafeERC20 } from "@openzeppelin/token/ERC20/SafeERC20.sol";
 
 import { IAIStablecoin } from "./interfaces/IAIStablecoin.sol";
 import { IRiskOracleController } from "./interfaces/IRiskOracleController.sol";
@@ -12,6 +14,18 @@ import { IRiskOracleController } from "./interfaces/IRiskOracleController.sol";
 /// @notice Manages multi-token collateral deposits with AI-driven risk assessment and AIUSD minting
 /// @dev Integrates with Chainlink + Amazon Bedrock AI for dynamic collateral ratio calculations
 contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
+    // =============================================================
+    //                        CONSTANTS
+    // =============================================================
+
+    /// @notice Maximum basis points (100.00%)
+    uint256 public constant MAX_BPS = 10_000;
+    
+    /// @notice Default emergency withdrawal delay (4 hours)
+    uint256 public constant DEFAULT_EMERGENCY_DELAY = 4 hours;
+
     // =============================================================
     //                  CONFIGURATION & STORAGE
     // =============================================================
@@ -64,6 +78,13 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
     /// "USDC", "DAI")
     mapping(address => string) private tokenSymbols;
 
+    /// @notice Optional price feed addresses for dynamic pricing
+    /// @dev Maps token addresses to their Chainlink-compatible price feed contracts
+    mapping(address => address) public tokenPriceFeeds;
+
+    /// @notice Emergency withdrawal delay (configurable, default 4 hours)
+    uint256 public emergencyWithdrawalDelay;
+
     // =============================================================
     //                    EVENTS & ERRORS
     // =============================================================
@@ -79,6 +100,7 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
     event TokenAdded(address indexed token, uint256 priceUSD, uint8 decimals);
     event TokenPriceUpdated(address indexed token, uint256 newPriceUSD);
     event ControllerUpdated(address indexed oldController, address indexed newController);
+    event TokenPriceFeedUpdated(address indexed token, address indexed priceFeed);
 
     /// @notice Validation errors
     error TokenNotSupported();
@@ -99,6 +121,21 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
 
     /// @notice Access control errors
     error OnlyRiskOracleController();
+
+    /// @notice Emitted when tokens are successfully deposited for collateralization
+    event CollateralDeposited(address indexed user, address indexed token, uint256 amount, uint256 requestId);
+
+    /// @notice Emitted when AIUSD tokens are burned for collateral withdrawal
+    event CollateralWithdrawn(address indexed user, uint256 aiusdBurned, uint256 requestId);
+
+    /// @notice Emitted when emergency withdrawal occurs for pending requests
+    event EmergencyWithdrawal(address indexed user, uint256 requestId, uint256 timestamp);
+
+    /// @notice Emitted when a token price feed is updated
+    event TokenPriceFeedUpdated(address indexed token, address indexed priceFeed);
+
+    /// @notice Emitted when emergency withdrawal delay is updated
+    event EmergencyWithdrawalDelayUpdated(uint256 oldDelay, uint256 newDelay);
 
     // =============================================================
     //                     ACCESS CONTROL
@@ -127,6 +164,7 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
     constructor(address _aiusd, address _riskOracleController) OwnedThreeStep(msg.sender) {
         aiusd = IAIStablecoin(_aiusd);
         riskOracleController = IRiskOracleController(_riskOracleController);
+        emergencyWithdrawalDelay = DEFAULT_EMERGENCY_DELAY;
     }
 
     /// @notice Accept ETH refunds from failed operations
@@ -253,7 +291,7 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
         if (!position.hasPendingRequest) revert NoPendingRequest();
 
         // Enforce minimum waiting period for emergency access
-        require(block.timestamp >= position.timestamp + 4 hours, "Must wait 4 hours");
+        require(block.timestamp >= position.timestamp + emergencyWithdrawalDelay, "Must wait");
 
         // Return all collateral directly to user
         for (uint256 i = 0; i < position.tokens.length; i++) {
@@ -346,6 +384,26 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
         emit ControllerUpdated(oldController, newController);
     }
 
+    /// @notice Set price feed for a token to enable dynamic pricing
+    /// @dev Allows using external price oracles instead of static vault prices
+    /// @param token Address of the token to set price feed for
+    /// @param priceFeed Address of the Chainlink-compatible price feed (0 to disable)
+    function setTokenPriceFeed(address token, address priceFeed) external onlyOwner {
+        if (!supportedTokens[token].supported) revert TokenNotSupported();
+        
+        tokenPriceFeeds[token] = priceFeed;
+        emit TokenPriceFeedUpdated(token, priceFeed);
+    }
+
+    /// @notice Update the emergency withdrawal delay
+    /// @dev Allows changing the delay for emergency withdrawals
+    /// @param newDelay New delay in seconds
+    function updateEmergencyWithdrawalDelay(uint256 newDelay) external onlyOwner {
+        uint256 oldDelay = emergencyWithdrawalDelay;
+        emergencyWithdrawalDelay = newDelay;
+        emit EmergencyWithdrawalDelayUpdated(oldDelay, newDelay);
+    }
+
     // =============================================================
     //                  EXTERNAL VIEW FUNCTIONS
     // =============================================================
@@ -396,7 +454,7 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
         }
 
         uint256 timeElapsed = block.timestamp - position.timestamp;
-        uint256 requiredTime = 4 hours;
+        uint256 requiredTime = emergencyWithdrawalDelay;
 
         if (timeElapsed >= requiredTime) {
             return (true, 0);
@@ -434,6 +492,30 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
     /// @return USD value with 18 decimal precision
     function _calculateUSDValue(address token, uint256 amount) internal view returns (uint256) {
         TokenInfo memory tokenInfo = supportedTokens[token];
+        
+        // Check if token has a price feed configured
+        address priceFeed = tokenPriceFeeds[token];
+        if (priceFeed != address(0)) {
+            // Use dynamic pricing from price feed
+            try AggregatorV3Interface(priceFeed).latestRoundData() returns (
+                uint80, /* roundId */
+                int256 price,
+                uint256, /* startedAt */
+                uint256 updatedAt,
+                uint80 /* answeredInRound */
+            ) {
+                // Validate price data
+                if (price > 0 && block.timestamp - updatedAt <= 3600) { // 1 hour staleness check
+                    // Convert from 8 decimals to 18 decimals and calculate USD value
+                    uint256 priceUSD = uint256(price) * 1e10; // 8 decimals -> 18 decimals
+                    return (amount * priceUSD) / (10 ** tokenInfo.decimals);
+                }
+            } catch {
+                // Price feed failed, fall back to static price
+            }
+        }
+        
+        // Use static vault price as fallback
         return (amount * tokenInfo.priceUSD) / (10 ** tokenInfo.decimals);
     }
 

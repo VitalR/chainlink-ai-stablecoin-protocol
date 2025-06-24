@@ -1,421 +1,288 @@
-// AI Risk Assessment
-// Uses correct request format for alternative AWS endpoint
+// AI-Powered Collateral Risk Assessment for Stablecoin System
+// Supports crypto assets + Real World Assets (RWAs) - Focus on OUSG institutional collateral
 
-// Parse arguments from Chainlink Functions
-const basketData = args[0] || '{"ETH": 0.6, "DAI": 0.4}';
-const collateralValue = parseInt(args[1]) || 10000;
-const currentPrices = args[2]
-  ? JSON.parse(args[2])
-  : {
-      ETH: 2500, // Clean round number ~$2,500
-      WETH: 2500, // Same as ETH
-      BTC: 100000, // Clean round number ~$100,000
-      WBTC: 100000, // Same as BTC
-      DAI: 1.0, // Stable (correct)
-      USDC: 1.0, // Stable (correct)
-      USDT: 1.0, // Updated to $1.00 (more standard)
-    };
+// Mock current prices for testing (in production, these come from Chainlink feeds)
+const MOCK_PRICES = {
+  DAI: 1.0,
+  ETH: 2500,
+  WETH: 2500, // Same as ETH - wrapped version
+  BTC: 100000,
+  WBTC: 100000, // Same as BTC - wrapped version
+  LINK: 12.5,
+  USDC: 1.0, // Stable (correct)
 
-console.log('=== AI Risk Assessment - AWS Bedrock ===');
+  // === REAL WORLD ASSETS (RWAs) ===
+  // OUSG: Current NAV per token (appreciates daily with Treasury yields)
+  // Note: Real OUSG NAV updated daily by Ondo Finance
+  // For hackathon demo: Using simplified $100 price for easy calculations
+  OUSG: 100.0, // Simplified price: $100 (started at $95, appreciating with Treasury yields)
+  // Real implementation would fetch from Ondo's price oracle
+};
 
-// =============================================================
-//                     AWS BEDROCK INTEGRATION
-// =============================================================
+// === ENHANCED AI RISK PROFILES ===
+// Traditional crypto assets + RWA-specific profiles
+const RISK_PROFILES = {
+  // Crypto assets
+  DAI: { volatility: 0.02, liquidity: 0.88, stability: 0.95 },
+  ETH: { volatility: 0.75, liquidity: 0.95, stability: 0.65 },
+  WETH: { volatility: 0.72, liquidity: 0.92, stability: 0.68 },
+  WBTC: { volatility: 0.82, liquidity: 0.82, stability: 0.72 },
+  BTC: { volatility: 0.8, liquidity: 0.85, stability: 0.7 },
+  LINK: { volatility: 0.88, liquidity: 0.75, stability: 0.6 },
+  USDC: { volatility: 0.03, liquidity: 0.92, stability: 0.96 },
 
-async function callAmazonBedrockFixed(portfolio, prices, totalValue) {
-  try {
-    if (!secrets.AWS_ACCESS_KEY_ID || !secrets.AWS_SECRET_ACCESS_KEY) {
-      console.log('AWS credentials not available, using algorithmic fallback');
-      return null;
-    }
+  // === RWA RISK PROFILES ===
+  OUSG: {
+    volatility: 0.01, // Ultra-low volatility (Treasury-backed)
+    liquidity: 0.75, // Good but not DEX-level liquidity
+    stability: 0.98, // Extremely stable (government bonds)
+    isRWA: true,
+    backing: 'US_TREASURIES',
+    yieldBearing: true,
+    appreciating: true, // Key advantage over stablecoins
+    institution: 'ONDO_FINANCE',
+    tvl: 692000000, // $692M TVL - institutional scale
+  },
+  // USDY removed - business case analysis showed weak value proposition
+};
 
-    console.log('Attempting  Bedrock integration...');
+// === RWA-ENHANCED AI FUNCTIONS ===
 
-    // WORKING APPROACH: Alternative endpoint with credentials in URL
-    const url = `https://bedrock.us-east-1.amazonaws.com/model/anthropic.claude-3-sonnet-20240229-v1:0/invoke?aws_access_key_id=${secrets.AWS_ACCESS_KEY_ID}&aws_secret_access_key=${secrets.AWS_SECRET_ACCESS_KEY}`;
-
-    // Try different request formats to avoid SerializationException
-
-    // FORMAT 1: Simple text format
-    const requestBody1 = {
-      prompt: `DeFi Risk Analyst: Assess this portfolio for optimal collateral ratio.
-
-Portfolio: ${JSON.stringify(portfolio)}
-Prices: ${JSON.stringify(prices)}
-Value: $${totalValue}
-
-Target: Competitive ratios (125-175%) for user capital efficiency.
-Be aggressive but safe. Users want lower ratios.
-
-Format: RATIO:[125-200] CONFIDENCE:[50-95]`,
-      max_tokens: 300,
-      temperature: 0.7,
-    };
-
-    console.log('Trying FORMAT 1: Simple text format...');
-
-    let bedrockRequest = Functions.makeHttpRequest({
-      url: url,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      data: JSON.stringify(requestBody1),
-      timeout: 10000,
-    });
-
-    let bedrockResponse = await bedrockRequest;
-
-    console.log('Format 1 - Status:', bedrockResponse.status);
-    console.log('Format 1 - Error:', bedrockResponse.error);
-
-    if (bedrockResponse.status === 200 && !bedrockResponse.error) {
-      const response = bedrockResponse.data;
-      console.log('Format 1 Response:', JSON.stringify(response, null, 2));
-
-      // Try to extract text from various locations
-      if ((response && !response.Output) || !response.Output.__type) {
-        const text = extractTextFromResponse(response);
-        if (text) {
-          console.log('SUCCESS: Format 1 worked!');
-          return text;
-        }
-      }
-    }
-
-    console.log('Format 1 failed, trying FORMAT 2: Claude format...');
-
-    // FORMAT 2: Standard Claude format (but simplified)
-    const requestBody2 = {
-      model: 'anthropic.claude-3-sonnet-20240229-v1:0',
-      max_tokens: 300,
-      messages: [
-        {
-          role: 'user',
-          content: `DeFi Risk Analyst: Quick assessment.
-
-Portfolio: ${JSON.stringify(portfolio)}
-Value: $${totalValue}
-
-Return exactly: RATIO:150 CONFIDENCE:80`,
-        },
-      ],
-    };
-
-    bedrockRequest = Functions.makeHttpRequest({
-      url: url,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      data: JSON.stringify(requestBody2),
-      timeout: 10000,
-    });
-
-    bedrockResponse = await bedrockRequest;
-
-    console.log('Format 2 - Status:', bedrockResponse.status);
-    console.log('Format 2 - Error:', bedrockResponse.error);
-
-    if (bedrockResponse.status === 200 && !bedrockResponse.error) {
-      const response = bedrockResponse.data;
-      console.log('Format 2 Response:', JSON.stringify(response, null, 2));
-
-      if ((response && !response.Output) || !response.Output.__type) {
-        const text = extractTextFromResponse(response);
-        if (text) {
-          console.log('SUCCESS: Format 2 worked!');
-          return text;
-        }
-      }
-    }
-
-    console.log('Format 2 failed, trying FORMAT 3: Minimal format...');
-
-    // FORMAT 3: Minimal format
-    const requestBody3 = {
-      input: `Portfolio: ${JSON.stringify(
-        portfolio
-      )}. Return: RATIO:150 CONFIDENCE:80`,
-      parameters: {
-        max_tokens: 100,
-      },
-    };
-
-    bedrockRequest = Functions.makeHttpRequest({
-      url: url,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      data: JSON.stringify(requestBody3),
-      timeout: 10000,
-    });
-
-    bedrockResponse = await bedrockRequest;
-
-    console.log('Format 3 - Status:', bedrockResponse.status);
-    console.log('Format 3 - Error:', bedrockResponse.error);
-
-    if (bedrockResponse.status === 200 && !bedrockResponse.error) {
-      const response = bedrockResponse.data;
-      console.log('Format 3 Response:', JSON.stringify(response, null, 2));
-
-      if ((response && !response.Output) || !response.Output.__type) {
-        const text = extractTextFromResponse(response);
-        if (text) {
-          console.log('SUCCESS: Format 3 worked!');
-          return text;
-        }
-      }
-    }
-
-    console.log('All formats failed, using algorithmic fallback');
-    return null;
-  } catch (error) {
-    console.log(
-      `Bedrock integration failed: ${error.message}, using algorithmic fallback`
-    );
-    return null;
-  }
-}
-
-function extractTextFromResponse(response) {
-  // Try multiple possible locations for the text
-  const locations = [
-    'text',
-    'content',
-    'completion',
-    'output',
-    'result',
-    'response',
-    'body',
-    'message',
-  ];
-
-  for (const loc of locations) {
-    if (response[loc]) {
-      if (typeof response[loc] === 'string') {
-        return response[loc];
-      }
-      if (response[loc].text) {
-        return response[loc].text;
-      }
-      if (
-        Array.isArray(response[loc]) &&
-        response[loc][0] &&
-        response[loc][0].text
-      ) {
-        return response[loc][0].text;
-      }
-    }
-  }
-
-  // Check nested structures
-  if (
-    response.content &&
-    Array.isArray(response.content) &&
-    response.content[0] &&
-    response.content[0].text
-  ) {
-    return response.content[0].text;
-  }
-
-  if (
-    response.choices &&
-    Array.isArray(response.choices) &&
-    response.choices[0] &&
-    response.choices[0].text
-  ) {
-    return response.choices[0].text;
-  }
-
-  return null;
-}
-
-// =============================================================
-//                    OPTIMIZED ALGORITHMIC ANALYSIS
-// =============================================================
-
-function parseBasketData(data) {
-  try {
-    return JSON.parse(data);
-  } catch (error) {
-    return { ETH: 0.6, DAI: 0.4 };
-  }
-}
-
-function assessRiskAlgorithmic(basket, totalValue, prices) {
-  console.log('Starting optimized algorithmic analysis...');
-
-  // Optimized token risk profiles for competitive ratios
-  const tokenRiskProfiles = {
-    ETH: { volatility: 0.72, liquidity: 0.92, stability: 0.68 },
-    WETH: { volatility: 0.72, liquidity: 0.92, stability: 0.68 },
-    WBTC: { volatility: 0.82, liquidity: 0.82, stability: 0.72 },
-    BTC: { volatility: 0.82, liquidity: 0.82, stability: 0.72 },
-    DAI: { volatility: 0.03, liquidity: 0.88, stability: 0.96 },
-    USDC: { volatility: 0.03, liquidity: 0.92, stability: 0.96 },
-    USDT: { volatility: 0.05, liquidity: 0.88, stability: 0.92 },
-  };
-
-  const tokens = Object.keys(basket);
-  const weights = Object.values(basket);
-
-  // Calculate weighted metrics
+/**
+ * Enhanced portfolio analysis that considers RWA characteristics
+ */
+function analyzePortfolioWithRWA(tokens, amounts, prices) {
+  let totalValue = 0;
   let weightedVolatility = 0;
   let weightedLiquidity = 0;
   let weightedStability = 0;
+  let rwaExposure = 0;
+  let appreciatingAssetValue = 0;
+  let treasuryBackedValue = 0;
 
+  // Calculate portfolio metrics
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i];
-    const weight = weights[i];
-    const profile = tokenRiskProfiles[token] || {
-      volatility: 0.5,
-      liquidity: 0.5,
-      stability: 0.5,
-    };
+    const amount = amounts[i];
+    const price = prices[token] || MOCK_PRICES[token] || 1;
+    const value = amount * price;
+    totalValue += value;
 
-    weightedVolatility += profile.volatility * weight;
-    weightedLiquidity += profile.liquidity * weight;
-    weightedStability += profile.stability * weight;
-  }
+    const profile = RISK_PROFILES[token];
+    if (profile) {
+      const weight = value / totalValue;
+      weightedVolatility += profile.volatility * weight;
+      weightedLiquidity += profile.liquidity * weight;
+      weightedStability += profile.stability * weight;
 
-  // Enhanced diversification scoring
-  let diversificationBonus = 0;
-  if (tokens.length >= 4) diversificationBonus = 15;
-  else if (tokens.length >= 3) diversificationBonus = 12;
-  else if (tokens.length === 2) diversificationBonus = 6;
+      // Track RWA exposure
+      if (profile.isRWA) {
+        rwaExposure += value;
+      }
 
-  // Stablecoin bonus
-  const stablecoins = ['DAI', 'USDC', 'USDT'];
-  const hasStablecoin = tokens.some((token) => stablecoins.includes(token));
-  if (hasStablecoin) diversificationBonus += 10;
+      // Track appreciating assets (key for OUSG business case)
+      if (profile.appreciating) {
+        appreciatingAssetValue += value;
+      }
 
-  // Calculate stablecoin percentage
-  let stablecoinWeight = 0;
-  for (let i = 0; i < tokens.length; i++) {
-    if (stablecoins.includes(tokens[i])) {
-      stablecoinWeight += weights[i];
+      // Track Treasury-backed assets
+      if (profile.backing && profile.backing.includes('US_TREASURIES')) {
+        treasuryBackedValue += value;
+      }
     }
   }
 
-  // Calculate optimal ratio
-  let baseRatio = 135;
-  const volatilityAdjustment = weightedVolatility * 32;
-  const liquidityDiscount = weightedLiquidity * 10;
-  const stabilityDiscount = weightedStability * 15;
-  const diversificationDiscount = diversificationBonus * 0.5;
-  const stablecoinDiscount = stablecoinWeight * 20;
-
-  let finalRatio =
-    baseRatio +
-    volatilityAdjustment -
-    liquidityDiscount -
-    stabilityDiscount -
-    diversificationDiscount -
-    stablecoinDiscount;
-  finalRatio = Math.max(125, Math.min(195, finalRatio));
-
-  // Calculate confidence
-  let confidence = 65;
-  confidence += weightedLiquidity * 18;
-  confidence += Math.min(diversificationBonus, 15);
-  confidence += Math.min(tokens.length * 4, 16);
-  confidence += stablecoinWeight * 8;
-  confidence = Math.max(55, Math.min(95, confidence));
-
   return {
-    optimalRatio: Math.round(finalRatio),
-    confidence: Math.round(confidence),
+    totalValue,
+    weightedVolatility,
+    weightedLiquidity,
+    weightedStability,
+    rwaExposure,
+    rwaPercentage: (rwaExposure / totalValue) * 100,
+    appreciatingPercentage: (appreciatingAssetValue / totalValue) * 100,
+    treasuryPercentage: (treasuryBackedValue / totalValue) * 100,
+    diversificationScore: calculateDiversificationScore(tokens),
   };
 }
 
-// =============================================================
-//                    MAIN EXECUTION
-// =============================================================
+/**
+ * RWA-aware collateral ratio calculation - optimized for OUSG institutional use case
+ */
+function calculateRWAEnhancedRatio(portfolioAnalysis, tokens) {
+  let baseRatio = 150; // Conservative default
 
-try {
-  console.log('Starting  AI Risk Assessment...');
+  // === OUSG INSTITUTIONAL BONUSES ===
+  // Treasury-backed appreciating assets get significant advantages
+  if (portfolioAnalysis.treasuryPercentage > 0) {
+    // Major bonus for government backing
+    const treasuryBonus = Math.min(
+      portfolioAnalysis.treasuryPercentage * 0.4,
+      25
+    ); // Up to 25% bonus
+    baseRatio -= treasuryBonus;
 
-  // Parse collateral basket
-  const basket = parseBasketData(basketData);
-
-  // Try  AI analysis first
-  const aiText = await callAmazonBedrockFixed(
-    basket,
-    currentPrices,
-    collateralValue
-  );
-
-  let finalResult;
-
-  if (aiText) {
-    console.log('=== AI TEXT RECEIVED ===');
-    console.log('AI Response Text:', aiText);
-
-    // Try to parse the AI response
-    const ratioMatch = aiText.match(/RATIO[:\s]*(\d+)/i);
-    const confidenceMatch = aiText.match(/CONFIDENCE[:\s]*(\d+)/i);
-
-    if (ratioMatch && confidenceMatch) {
-      const ratio = parseInt(ratioMatch[1]);
-      const confidence = parseInt(confidenceMatch[1]);
-
-      if (
-        ratio >= 125 &&
-        ratio <= 200 &&
-        confidence >= 30 &&
-        confidence <= 95
-      ) {
-        console.log(
-          `SUCCESS: AI parsed ${ratio}% ratio, ${confidence}% confidence`
-        );
-        finalResult = {
-          optimalRatio: ratio,
-          confidence: confidence,
-          source: 'BEDROCK_AI',
-        };
-      } else {
-        console.log(
-          `AI values out of range: ratio=${ratio}, confidence=${confidence}`
-        );
-        finalResult = null;
-      }
-    } else {
-      console.log('Could not parse RATIO/CONFIDENCE from AI response');
-      finalResult = null;
+    // Additional bonus for large institutional exposure
+    if (portfolioAnalysis.treasuryPercentage > 50) {
+      baseRatio -= 5; // Extra bonus for institutional-scale positions
     }
-  } else {
-    console.log('No AI text received');
-    finalResult = null;
   }
 
-  // Fallback to algorithmic if AI failed
-  if (!finalResult) {
-    console.log('Using optimized algorithmic analysis');
-    const algoResult = assessRiskAlgorithmic(
-      basket,
-      collateralValue,
-      currentPrices
+  // === APPRECIATING ASSET BONUS ===
+  // OUSG appreciates, making it safer over time
+  if (portfolioAnalysis.appreciatingPercentage > 0) {
+    const appreciationBonus = Math.min(
+      portfolioAnalysis.appreciatingPercentage * 0.2,
+      10
     );
-    finalResult = {
-      optimalRatio: algoResult.optimalRatio,
-      confidence: algoResult.confidence,
-      source: 'ALGORITHMIC_AI',
-    };
+    baseRatio -= appreciationBonus;
   }
 
-  console.log(
-    `Final Assessment: ${finalResult.optimalRatio}% ratio, ${finalResult.confidence}% confidence, ${finalResult.source}`
-  );
+  // === TRADITIONAL RISK ADJUSTMENTS ===
+  // Volatility penalty (minimal for Treasury assets)
+  const volatilityPenalty = portfolioAnalysis.weightedVolatility * 30;
+  const institutionalDiscount = portfolioAnalysis.treasuryPercentage * 0.7; // Institutions reduce volatility impact
+  baseRatio += Math.max(0, volatilityPenalty - institutionalDiscount);
 
-  // Format response for smart contract
-  const response = `RATIO:${finalResult.optimalRatio} CONFIDENCE:${finalResult.confidence} SOURCE:${finalResult.source}`;
+  // Liquidity adjustment
+  const liquidityBonus = (portfolioAnalysis.weightedLiquidity - 0.5) * 20;
+  baseRatio -= liquidityBonus;
 
-  return Functions.encodeString(response);
-} catch (error) {
-  console.log('Error in main execution:', error.message);
-  const fallbackResponse = 'RATIO:145 CONFIDENCE:65 SOURCE:FALLBACK';
-  return Functions.encodeString(fallbackResponse);
+  // Stability bonus (huge for Treasury assets)
+  const stabilityBonus = (portfolioAnalysis.weightedStability - 0.7) * 20;
+  baseRatio -= stabilityBonus;
+
+  // Diversification bonus
+  const diversificationBonus =
+    (portfolioAnalysis.diversificationScore - 0.5) * 10;
+  baseRatio -= diversificationBonus;
+
+  // Ensure reasonable bounds (lower minimum for institutional assets)
+  return Math.max(105, Math.min(200, Math.round(baseRatio)));
 }
+
+/**
+ * Generate RWA-aware confidence score
+ */
+function calculateRWAConfidence(portfolioAnalysis, ratio, tokens) {
+  let confidence = 85; // Base confidence
+
+  // === INSTITUTIONAL CONFIDENCE BOOSTS ===
+  if (portfolioAnalysis.treasuryPercentage > 0) {
+    // Treasury backing massively increases confidence
+    confidence += Math.min(portfolioAnalysis.treasuryPercentage * 0.2, 10);
+
+    // ONDO institutional backing
+    const ondoTokens = tokens.filter((token) => {
+      const profile = RISK_PROFILES[token];
+      return profile && profile.institution === 'ONDO_FINANCE';
+    });
+
+    if (ondoTokens.length > 0) {
+      confidence += 8; // Institutional backing increases confidence
+    }
+  }
+
+  // === TRADITIONAL FACTORS ===
+  // High stability increases confidence
+  confidence += (portfolioAnalysis.weightedStability - 0.7) * 25;
+
+  // Good liquidity increases confidence
+  confidence += (portfolioAnalysis.weightedLiquidity - 0.6) * 15;
+
+  // Lower volatility increases confidence
+  confidence += (0.5 - portfolioAnalysis.weightedVolatility) * 15;
+
+  // Diversification increases confidence
+  confidence += portfolioAnalysis.diversificationScore * 10;
+
+  // Conservative ratios increase confidence
+  if (ratio < 120) confidence += 8; // Very conservative for institutions
+  if (ratio > 160) confidence -= 5;
+
+  return Math.max(75, Math.min(99, Math.round(confidence)));
+}
+
+// === MAIN AI PROCESSING FUNCTION ===
+async function processCollateralAssessment(basketData) {
+  try {
+    console.log('🤖 AI analyzing collateral with institutional RWA support...');
+    console.log('📊 Input data:', basketData);
+
+    // Parse the basket
+    const tokens = [];
+    const amounts = [];
+
+    if (basketData && typeof basketData === 'string') {
+      const pairs = basketData.split(',');
+      for (const pair of pairs) {
+        const [symbol, amount] = pair.split(':');
+        if (symbol && amount) {
+          tokens.push(symbol.trim());
+          amounts.push(parseFloat(amount));
+        }
+      }
+    }
+
+    if (tokens.length === 0) {
+      throw new Error('No valid tokens found in basket data');
+    }
+
+    console.log('🔍 Parsed tokens:', tokens);
+    console.log('💰 Amounts:', amounts);
+
+    // Enhanced portfolio analysis with RWA support
+    const portfolioAnalysis = analyzePortfolioWithRWA(
+      tokens,
+      amounts,
+      MOCK_PRICES
+    );
+    console.log('📈 Portfolio analysis:', portfolioAnalysis);
+
+    // Calculate RWA-enhanced collateral ratio
+    const ratio = calculateRWAEnhancedRatio(portfolioAnalysis, tokens);
+
+    // Calculate RWA-aware confidence
+    const confidence = calculateRWAConfidence(portfolioAnalysis, ratio, tokens);
+
+    // Determine AI source
+    let source = 'ALGORITHMIC_AI';
+    if (portfolioAnalysis.treasuryPercentage > 30) {
+      source = 'INSTITUTIONAL_RWA_AI';
+    } else if (portfolioAnalysis.rwaPercentage > 0) {
+      source = 'RWA_ENHANCED_AI';
+    }
+
+    const result = `RATIO:${ratio} CONFIDENCE:${confidence} SOURCE:${source}`;
+
+    console.log('✅ AI Result:', result);
+    console.log(
+      '🏛️ Treasury Exposure:',
+      portfolioAnalysis.treasuryPercentage.toFixed(1) + '%'
+    );
+    console.log(
+      '📈 Appreciating Assets:',
+      portfolioAnalysis.appreciatingPercentage.toFixed(1) + '%'
+    );
+
+    return result;
+  } catch (error) {
+    console.error('❌ AI processing error:', error);
+
+    // Conservative fallback
+    return 'RATIO:150 CONFIDENCE:75 SOURCE:FALLBACK_AI';
+  }
+}
+
+// Helper function for diversification score
+function calculateDiversificationScore(tokens) {
+  if (tokens.length <= 1) return 0.2;
+  if (tokens.length === 2) return 0.6;
+  if (tokens.length === 3) return 0.8;
+  return 0.9;
+}
+
+// === CHAINLINK FUNCTIONS ENTRY POINT ===
+const result = await processCollateralAssessment(args[0]);
+
+// Convert string result to bytes as required by Chainlink Functions
+return Functions.encodeString(result);

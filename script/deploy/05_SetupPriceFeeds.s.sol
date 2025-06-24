@@ -8,7 +8,7 @@ import { SepoliaConfig } from "../../config/SepoliaConfig.sol";
 
 /// @title Setup Price Feeds Deployment Script
 /// @notice Configures Chainlink price feeds for the RiskOracleController on Sepolia testnet
-/// @dev Sets up all 5 supported price feeds (BTC, ETH, LINK, DAI, USDC) using verified Sepolia addresses
+/// @dev Sets up all 6 supported price feeds (BTC, ETH, LINK, DAI, USDC, OUSG) using verified Sepolia addresses
 contract SetupPriceFeedsScript is Script {
     address deployerPublicKey;
     uint256 deployerPrivateKey;
@@ -30,7 +30,7 @@ contract SetupPriceFeedsScript is Script {
 
         RiskOracleController controller = RiskOracleController(controllerAddress);
 
-        // Setup Sepolia price feeds (all 5 supported tokens)
+        // Setup Sepolia price feeds (all 6 supported tokens)
         controller.setupSepoliaFeeds();
 
         vm.stopBroadcast();
@@ -41,6 +41,7 @@ contract SetupPriceFeedsScript is Script {
         console.log("- LINK/USD feed:", SepoliaConfig.LINK_USD_PRICE_FEED);
         console.log("- DAI/USD feed:", SepoliaConfig.DAI_USD_PRICE_FEED);
         console.log("- USDC/USD feed:", SepoliaConfig.USDC_USD_PRICE_FEED);
+        console.log("- OUSG/USD feed (RWA):", SepoliaConfig.OUSG_USD_PRICE_FEED);
     }
 
     /// @notice Alternative setup function for custom controller address

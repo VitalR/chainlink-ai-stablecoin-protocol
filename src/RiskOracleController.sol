@@ -529,8 +529,8 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
     /// @notice Setup Sepolia testnet price feeds for all supported tokens
     /// @dev Call this function after deployment to configure all available Chainlink feeds
     function setupSepoliaFeeds() external onlyOwner {
-        string[] memory tokens = new string[](5);
-        address[] memory feeds = new address[](5);
+        string[] memory tokens = new string[](6);
+        address[] memory feeds = new address[](6);
 
         // BTC/USD feed on Sepolia (WBTC uses BTC price)
         tokens[0] = "BTC";
@@ -551,6 +551,10 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
         // USDC/USD feed on Sepolia
         tokens[4] = "USDC";
         feeds[4] = SepoliaConfig.USDC_USD_PRICE_FEED;
+
+        // OUSG/USD feed on Sepolia (RWA)
+        tokens[5] = "OUSG";
+        feeds[5] = SepoliaConfig.OUSG_USD_PRICE_FEED;
 
         // Set price feeds directly to avoid external call context issues
         require(tokens.length == feeds.length, "Array length mismatch");
@@ -644,6 +648,10 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
 
         // USDC - Use real Chainlink feed with stable fallback
         json = string(abi.encodePacked(json, '"USDC": ', _getSafePrice("USDC", 1)));
+        json = string(abi.encodePacked(json, ", "));
+
+        // OUSG - Use real RWA price feed with fallback
+        json = string(abi.encodePacked(json, '"OUSG": ', _getSafePrice("OUSG", 100)));
         json = string(abi.encodePacked(json, "}"));
 
         return json;
