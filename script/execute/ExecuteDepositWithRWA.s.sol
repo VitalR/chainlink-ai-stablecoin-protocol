@@ -17,7 +17,7 @@ contract ExecuteDepositWithRWAScript is Script {
     AIStablecoin aiusd;
     CollateralVault vault;
     RiskOracleController controller;
-    
+
     MockOUSG ousg;
     MockRWAPriceFeed ousgPriceFeed;
     IERC20 weth;
@@ -48,7 +48,7 @@ contract ExecuteDepositWithRWAScript is Script {
         // Initialize RWA tokens
         ousg = MockOUSG(SepoliaConfig.MOCK_OUSG);
         ousgPriceFeed = MockRWAPriceFeed(SepoliaConfig.OUSG_USD_PRICE_FEED);
-        
+
         // Initialize comparison tokens
         weth = IERC20(SepoliaConfig.MOCK_WETH);
         dai = IERC20(SepoliaConfig.MOCK_DAI);
@@ -63,11 +63,11 @@ contract ExecuteDepositWithRWAScript is Script {
         // 1. Check OUSG balance and price
         uint256 ousgBalance = ousg.balanceOf(user);
         uint256 ousgPrice = ousg.pricePerToken();
-        
+
         console.log("User OUSG balance:", ousgBalance / 1e18, "OUSG");
         console.log("Current OUSG price: $", ousgPrice / 1e18);
         console.log("OUSG type: Treasury-backed appreciating asset");
-        
+
         require(ousgBalance >= 100e18, "Need at least 100 OUSG for institutional deposit");
 
         // 2. Prepare institutional deposit (100 OUSG = $10,000 minimum)
@@ -109,7 +109,7 @@ contract ExecuteDepositWithRWAScript is Script {
         console.log("OUSG deposited:", depositedAmounts[0] / 1e18, "tokens");
         console.log("AI Request ID:", requestId);
         console.log("Pending AI assessment:", hasPendingRequest);
-        
+
         // 6. Display expected AI benefits
         console.log("=== Expected AI Benefits ===");
         console.log("Standard crypto ratio: 150% (66.7% LTV)");
@@ -129,7 +129,7 @@ contract ExecuteDepositWithRWAScript is Script {
 
         uint256 ousgBalance = ousg.balanceOf(user);
         uint256 ousgPrice = ousg.pricePerToken();
-        
+
         // Large institutional deposit: 5000 OUSG = $500k
         uint256 largeDepositAmount = 5000e18;
         require(ousgBalance >= largeDepositAmount, "Need at least 5000 OUSG for large institutional deposit");
@@ -146,13 +146,13 @@ contract ExecuteDepositWithRWAScript is Script {
 
         ousg.approve(address(vault), largeDepositAmount);
         uint256 aiFee = controller.estimateTotalFee();
-        
+
         vault.depositBasket{ value: aiFee }(tokens, amounts);
         console.log("Large institutional OUSG deposit completed!");
 
         // Check position
         (,, uint256 totalValue,,, uint256 requestId, bool hasPendingRequest) = vault.getPosition(user);
-        
+
         console.log("=== Large Position Summary ===");
         console.log("Total value: $", totalValue / 1e18);
         console.log("Request ID:", requestId);
@@ -180,7 +180,7 @@ contract ExecuteDepositWithRWAScript is Script {
 
         // Mixed portfolio: 50 OUSG + 1 ETH
         uint256 ousgAmount = 50e18; // $5,000 in OUSG
-        uint256 wethAmount = 1e18;  // 1 ETH (~$2,500)
+        uint256 wethAmount = 1e18; // 1 ETH (~$2,500)
 
         require(ousgBalance >= ousgAmount, "Insufficient OUSG");
         require(wethBalance >= wethAmount, "Insufficient WETH");
@@ -203,7 +203,7 @@ contract ExecuteDepositWithRWAScript is Script {
 
         uint256 aiFee = controller.estimateTotalFee();
         vault.depositBasket{ value: aiFee }(tokens, amounts);
-        
+
         console.log("Mixed portfolio deposit executed!");
 
         vm.stopBroadcast();
@@ -212,10 +212,10 @@ contract ExecuteDepositWithRWAScript is Script {
     /// @notice Demonstrate OUSG vs crypto comparison
     function demonstrateOUSGAdvantage() public view {
         console.log("=== OUSG vs Crypto Collateral Comparison ===");
-        
+
         uint256 ousgPrice = ousg.pricePerToken();
-        (,int256 priceFeedAnswer,,,) = ousgPriceFeed.latestRoundData();
-        
+        (, int256 priceFeedAnswer,,,) = ousgPriceFeed.latestRoundData();
+
         console.log("OUSG Token Analysis:");
         console.log("- Current price: $", ousgPrice / 1e18);
         console.log("- Price feed: $", uint256(priceFeedAnswer) / 1e8);
@@ -223,21 +223,21 @@ contract ExecuteDepositWithRWAScript is Script {
         console.log("- Yield: 5% annual appreciation");
         console.log("- Volatility: <1% (government bonds)");
         console.log("- Liquidity: Institutional grade");
-        
+
         console.log("");
         console.log("Expected AI Assessment:");
         console.log("CRYPTO COLLATERAL:");
         console.log("- Standard ratio: 150%");
         console.log("- LTV: 66.7%");
         console.log("- Risk: High volatility (20%+)");
-        
+
         console.log("");
         console.log("OUSG COLLATERAL (Treasury-backed):");
         console.log("- Expected ratio: 100-120%");
         console.log("- LTV: 80-100%");
         console.log("- Risk: Ultra-low (government guaranteed)");
         console.log("- Advantage: 25-50% better capital efficiency");
-        
+
         console.log("");
         console.log("BUSINESS IMPACT:");
         console.log("- Treasury holders keep yield exposure");
@@ -252,17 +252,17 @@ contract ExecuteDepositWithRWAScript is Script {
         console.log("OUSG Token:", address(ousg));
         console.log("OUSG Price Feed:", address(ousgPriceFeed));
         console.log("Current OUSG price: $", ousg.pricePerToken() / 1e18);
-        
-        (,int256 feedPrice,,,) = ousgPriceFeed.latestRoundData();
+
+        (, int256 feedPrice,,,) = ousgPriceFeed.latestRoundData();
         console.log("Price feed value: $", uint256(feedPrice) / 1e8);
-        
+
         // Check vault supports OUSG
         (uint256 priceUSD, uint8 decimals, bool supported) = vault.supportedTokens(address(ousg));
         console.log("Vault OUSG support:");
         console.log("- Supported:", supported);
         console.log("- Price: $", priceUSD / 1e18);
         console.log("- Decimals:", decimals);
-        
+
         console.log("");
         console.log("User Status:");
         console.log("- Address:", user);
@@ -307,4 +307,4 @@ contract ExecuteDepositWithRWAScript is Script {
         console.log("Treasury holders can now leverage OUSG positions");
         console.log("with superior AI-enhanced borrowing terms!");
     }
-} 
+}

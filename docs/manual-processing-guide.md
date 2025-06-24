@@ -175,7 +175,7 @@ async function processWithClaude(requestId, basketData, totalValue) {
         role: 'user',
         content: `DeFi risk analysis needed:
                 Basket: ${basketData}, Value: $${totalValue}
-                Format: RATIO:XXX CONFIDENCE:YY`,
+            Format: RATIO:XXX CONFIDENCE:YY`,
       },
     ],
   });

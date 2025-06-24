@@ -457,7 +457,7 @@ contract ForkTestFullSystem is Test {
         console.log("Burning", stablecoinBalance / 1e18, "stablecoins to withdraw collateral...");
 
         // Withdraw all collateral by burning all stablecoins
-        vault.withdrawCollateral(stablecoinBalance);
+        vault.withdrawFromPosition(0, stablecoinBalance);
 
         vm.stopPrank();
 
@@ -486,7 +486,7 @@ contract ForkTestFullSystem is Test {
     // =============================================================
     //                      COMPREHENSIVE SYSTEM TEST
     // =============================================================
-    
+
     // TODO: Fix comprehensive system test - currently fails due to LINK subscription balance
     // in fork environment. Individual portfolio tests work fine, but running them all together
     // causes InsufficientBalance errors. Need to investigate subscription balance simulation.

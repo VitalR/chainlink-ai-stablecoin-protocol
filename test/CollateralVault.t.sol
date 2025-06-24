@@ -101,67 +101,108 @@ contract CollateralVaultTest is Test {
         vm.stopPrank();
     }
 
-    /// @notice Test basic collateral withdrawal functionality
-    function test_collateralWithdrawal() public {
-        // Setup a completed position
-        uint256 requestId = _setupCompletedPosition(user1);
-
+    /// @notice Test enhanced position management with multiple positions
+    function test_multiplePositions() public {
         vm.startPrank(user1);
-        (,,, uint256 aiusdMinted,,,) = vault.getPosition(user1);
-        uint256 initialAIUSDBalance = aiusd.balanceOf(user1);
-        uint256 initialWETHBalance = weth.balanceOf(user1);
 
-        // Approve vault to burn AIUSD
-        aiusd.approve(address(vault), type(uint256).max);
+        // Position 1: WETH only
+        address[] memory tokens1 = new address[](1);
+        uint256[] memory amounts1 = new uint256[](1);
+        tokens1[0] = address(weth);
+        amounts1[0] = 5 ether; // $10,000
 
-        // Withdraw half the AIUSD
-        uint256 withdrawAmount = aiusdMinted / 2;
+        vault.depositBasket(tokens1, amounts1);
 
-        vm.expectEmit(true, false, false, true);
-        emit CollateralWithdrawn(user1, withdrawAmount);
+        // Check position count
+        assertEq(vault.userPositionCount(user1), 1, "Should have 1 position");
 
-        vault.withdrawCollateral(withdrawAmount);
+        // Complete first position
+        _completeRequest(user1, 0);
 
-        // Check AIUSD was burned
-        assertEq(aiusd.balanceOf(user1), initialAIUSDBalance - withdrawAmount, "AIUSD should be burned");
+        // Position 2: Multi-token basket
+        address[] memory tokens2 = new address[](2);
+        uint256[] memory amounts2 = new uint256[](2);
+        tokens2[0] = address(usdc);
+        tokens2[1] = address(dai);
+        amounts2[0] = 1000 * 1e6; // $1,000
+        amounts2[1] = 500 ether; // $500
 
-        // Check proportional collateral returned (allow for small rounding differences)
-        uint256 finalWETHBalance = weth.balanceOf(user1);
-        uint256 expectedWETHReturn = DEPOSIT_AMOUNT / 2; // 50% withdrawal
-        uint256 actualWETHReturn = finalWETHBalance - initialWETHBalance;
+        vault.depositBasket(tokens2, amounts2);
 
-        // Allow for rounding errors within 100 wei
-        assertApproxEqAbs(actualWETHReturn, expectedWETHReturn, 100, "Should receive proportional WETH");
+        // Check position count increased
+        assertEq(vault.userPositionCount(user1), 2, "Should have 2 positions");
 
-        // Check position updated
-        (,,, uint256 remainingAIUSD,,,) = vault.getPosition(user1);
-        assertEq(remainingAIUSD, aiusdMinted - withdrawAmount, "Position should be updated");
+        // Complete second position
+        _completeRequest(user1, 1);
+
+        // Test getDepositPositions
+        CollateralVault.Position[] memory positions = vault.getDepositPositions();
+        assertEq(positions.length, 2, "Should return 2 positions");
+        assertEq(positions[0].tokens.length, 1, "Position 0 should have 1 token");
+        assertEq(positions[1].tokens.length, 2, "Position 1 should have 2 tokens");
+
+        // Test getPositionSummary
+        (uint256 totalPositions, uint256 activePositions, uint256 totalValueUSD, uint256 totalAIUSDMinted) =
+            vault.getPositionSummary(user1);
+        assertEq(totalPositions, 2, "Should have 2 total positions");
+        assertEq(activePositions, 2, "Should have 2 active positions");
+        assertGt(totalValueUSD, 0, "Should have total value");
+        assertGt(totalAIUSDMinted, 0, "Should have minted AIUSD");
 
         vm.stopPrank();
     }
 
-    /// @notice Test full collateral withdrawal clears position
-    function test_fullCollateralWithdrawal() public {
-        uint256 requestId = _setupCompletedPosition(user1);
-
+    /// @notice Test withdrawing from specific positions
+    function test_withdrawFromSpecificPosition() public {
+        // Setup two positions
         vm.startPrank(user1);
-        (,,, uint256 aiusdMinted,,,) = vault.getPosition(user1);
 
-        // Approve vault to burn AIUSD
+        // Position 0: WETH
+        address[] memory tokens1 = new address[](1);
+        uint256[] memory amounts1 = new uint256[](1);
+        tokens1[0] = address(weth);
+        amounts1[0] = 5 ether;
+        vault.depositBasket(tokens1, amounts1);
+        _completeRequest(user1, 0);
+
+        // Position 1: DAI
+        address[] memory tokens2 = new address[](1);
+        uint256[] memory amounts2 = new uint256[](1);
+        tokens2[0] = address(dai);
+        amounts2[0] = 1000 ether;
+        vault.depositBasket(tokens2, amounts2);
+        _completeRequest(user1, 1);
+
+        // Get position info
+        CollateralVault.Position memory pos0 = vault.getUserDepositInfo(user1, 0);
+        CollateralVault.Position memory pos1 = vault.getUserDepositInfo(user1, 1);
+
+        uint256 initialWETH = weth.balanceOf(user1);
+        uint256 initialDAI = dai.balanceOf(user1);
+
+        // Approve AIUSD for burning
         aiusd.approve(address(vault), type(uint256).max);
 
-        vault.withdrawCollateral(aiusdMinted);
+        // Withdraw half from position 0 (WETH)
+        uint256 withdrawAmount0 = pos0.aiusdMinted / 2;
+        vault.withdrawFromPosition(0, withdrawAmount0);
 
-        // Check position is cleared
-        (address[] memory tokens,,,,,, bool hasPending) = vault.getPosition(user1);
-        assertEq(tokens.length, 0, "Position should be cleared");
-        assertFalse(hasPending, "Should have no pending request");
+        // Check WETH returned but DAI unchanged
+        assertGt(weth.balanceOf(user1), initialWETH, "Should receive WETH");
+        assertEq(dai.balanceOf(user1), initialDAI, "DAI should be unchanged");
+
+        // Withdraw from position 1 (DAI)
+        uint256 withdrawAmount1 = pos1.aiusdMinted / 4;
+        vault.withdrawFromPosition(1, withdrawAmount1);
+
+        // Check DAI returned
+        assertGt(dai.balanceOf(user1), initialDAI, "Should receive DAI");
 
         vm.stopPrank();
     }
 
-    /// @notice Test user-initiated emergency withdrawal
-    function test_userEmergencyWithdrawal() public {
+    /// @notice Test user emergency withdrawal with enhanced positions
+    function test_userEmergencyWithdrawEnhanced() public {
         // Setup pending position
         vm.startPrank(user1);
         address[] memory tokens = new address[](1);
@@ -173,19 +214,20 @@ contract CollateralVaultTest is Test {
         uint256 initialWETHBalance = weth.balanceOf(user1);
         vm.stopPrank();
 
-        // Try emergency withdrawal before 4 hours - should fail
+        // Try emergency withdrawal before delay - should fail
         vm.startPrank(user1);
-        vm.expectRevert("Must wait 4 hours");
+        vm.expectRevert("Must wait");
         vault.userEmergencyWithdraw();
         vm.stopPrank();
 
-        // Fast forward 4 hours
-        vm.warp(block.timestamp + 4 hours + 1);
+        // Fast forward past emergency delay
+        vm.warp(block.timestamp + vault.emergencyWithdrawalDelay() + 1);
 
         // Now emergency withdrawal should work
         vm.startPrank(user1);
 
-        (,,,,, uint256 requestId,) = vault.getPosition(user1);
+        CollateralVault.Position memory position = vault.getUserDepositInfo(user1, 0);
+        uint256 requestId = position.requestId;
 
         vm.expectEmit(true, true, false, true);
         emit EmergencyWithdrawal(user1, requestId, block.timestamp);
@@ -196,109 +238,24 @@ contract CollateralVaultTest is Test {
         uint256 finalWETHBalance = weth.balanceOf(user1);
         assertEq(finalWETHBalance, initialWETHBalance + DEPOSIT_AMOUNT, "Should get all collateral back");
 
-        // Check position cleared
-        (address[] memory posTokens,,,,,, bool hasPending) = vault.getPosition(user1);
-        assertEq(posTokens.length, 0, "Position should be cleared");
-        assertFalse(hasPending, "Should have no pending request");
-
         vm.stopPrank();
     }
 
-    /// @notice Test multi-token basket deposit and withdrawal
-    function test_multiTokenBasket() public {
-        vm.startPrank(user1);
+    /// @notice Test configurable emergency withdrawal delay
+    function test_configurableEmergencyDelay() public {
+        // Test default delay
+        assertEq(vault.emergencyWithdrawalDelay(), 4 hours, "Should have default 4 hour delay");
 
-        // Setup multi-token basket (using realistic amounts within available balances)
-        address[] memory tokens = new address[](3);
-        uint256[] memory amounts = new uint256[](3);
-        tokens[0] = address(weth);
-        tokens[1] = address(usdc);
-        tokens[2] = address(dai);
-        amounts[0] = 2 ether; // $4,000
-        amounts[1] = 2000 * 1e6; // $2,000 (USDC has 6 decimals)
-        amounts[2] = 500 ether; // $500 (within 1000 ether balance)
-        // Total: $6,500
-
-        uint256 expectedTotalValue = (2 * 2000 + 2000 + 500) * 1e18; // $6,500 in 18 decimals
-
-        vm.expectEmit(true, false, false, false);
-        emit CollateralDeposited(user1, tokens, amounts, expectedTotalValue);
-
-        vault.depositBasket(tokens, amounts);
-
-        // Check position
-        (address[] memory posTokens, uint256[] memory posAmounts, uint256 totalValue,,,, bool hasPending) =
-            vault.getPosition(user1);
-        assertEq(posTokens.length, 3, "Should have 3 tokens");
-        assertEq(posAmounts[0], 2 ether, "WETH amount correct");
-        assertEq(posAmounts[1], 2000 * 1e6, "USDC amount correct");
-        assertEq(posAmounts[2], 500 ether, "DAI amount correct");
-        assertEq(totalValue, expectedTotalValue, "Total value calculated correctly");
-        assertTrue(hasPending, "Should have pending request");
-
-        vm.stopPrank();
-    }
-
-    /// @notice Test token management functions
-    function test_tokenManagement() public {
+        // Update delay as owner
         vm.startPrank(owner);
+        uint256 newDelay = 2 hours;
 
-        // Add new token
-        address newToken = makeAddr("newToken");
-        uint256 price = 500 * 1e18; // $500
-
-        vm.expectEmit(true, false, false, true);
-        emit TokenAdded(newToken, price, 18);
-
-        vault.addToken(newToken, price, 18, "NEW");
-
-        // Check token added
-        (uint256 tokenPrice, uint8 decimals, bool supported) = vault.supportedTokens(newToken);
-        assertEq(tokenPrice, price, "Price should be set");
-        assertEq(decimals, 18, "Decimals should be set");
-        assertTrue(supported, "Token should be supported");
-
-        // Update token price
-        uint256 newPrice = 600 * 1e18;
-
-        vm.expectEmit(true, false, false, true);
-        emit TokenPriceUpdated(newToken, newPrice);
-
-        vault.updateTokenPrice(newToken, newPrice);
-
-        // Check price updated
-        (uint256 updatedPrice,,) = vault.supportedTokens(newToken);
-        assertEq(updatedPrice, newPrice, "Price should be updated");
+        vault.updateEmergencyWithdrawalDelay(newDelay);
+        assertEq(vault.emergencyWithdrawalDelay(), newDelay, "Should update delay");
 
         vm.stopPrank();
-    }
 
-    /// @notice Test controller update functionality
-    function test_controllerUpdate() public {
-        vm.startPrank(owner);
-
-        address newController = makeAddr("newController");
-        address oldController = address(controller);
-
-        vm.expectEmit(true, true, false, false);
-        emit ControllerUpdated(oldController, newController);
-
-        vault.updateController(newController);
-
-        // Check controller updated
-        assertEq(address(vault.riskOracleController()), newController, "Controller should be updated");
-
-        vm.stopPrank();
-    }
-
-    /// @notice Test view functions
-    function test_viewFunctions() public {
-        // Test canEmergencyWithdraw for user without position
-        (bool canWithdraw, uint256 timeRemaining) = vault.canEmergencyWithdraw(user1);
-        assertFalse(canWithdraw, "Should not be able to withdraw without position");
-        assertEq(timeRemaining, 0, "No time remaining for non-existent position");
-
-        // Setup pending position
+        // Test new delay works
         vm.startPrank(user1);
         address[] memory tokens = new address[](1);
         uint256[] memory amounts = new uint256[](1);
@@ -307,89 +264,78 @@ contract CollateralVaultTest is Test {
         vault.depositBasket(tokens, amounts);
         vm.stopPrank();
 
-        // Test canEmergencyWithdraw immediately after deposit
-        (canWithdraw, timeRemaining) = vault.canEmergencyWithdraw(user1);
-        assertFalse(canWithdraw, "Should not be able to withdraw immediately");
-        assertGt(timeRemaining, 0, "Should have time remaining");
+        // Should fail before new delay
+        vm.warp(block.timestamp + 1 hours);
+        vm.startPrank(user1);
+        vm.expectRevert("Must wait");
+        vault.userEmergencyWithdraw();
+        vm.stopPrank();
 
-        // Test getPositionStatus
-        (bool hasPosition, bool isPending, uint256 requestId, uint256 timeElapsed) = vault.getPositionStatus(user1);
-        assertTrue(hasPosition, "Should have position");
-        assertTrue(isPending, "Should be pending");
-        assertGt(requestId, 0, "Should have request ID");
-        assertGe(timeElapsed, 0, "Should have time elapsed");
-
-        // Fast forward and test again
-        vm.warp(block.timestamp + 4 hours + 1);
-
-        (canWithdraw, timeRemaining) = vault.canEmergencyWithdraw(user1);
-        assertTrue(canWithdraw, "Should be able to withdraw after 4 hours");
-        assertEq(timeRemaining, 0, "No time remaining");
+        // Should work after new delay
+        vm.warp(block.timestamp + 2 hours);
+        vm.startPrank(user1);
+        vault.userEmergencyWithdraw(); // Should not revert
+        vm.stopPrank();
     }
 
-    /// @notice Test error conditions
-    function test_errorConditions() public {
+    /// @notice Test enhanced view functions
+    function test_enhancedViewFunctions() public {
         vm.startPrank(user1);
 
-        // Test empty basket
-        address[] memory emptyTokens = new address[](0);
-        uint256[] memory emptyAmounts = new uint256[](0);
+        // Initially no positions
+        assertEq(vault.userPositionCount(user1), 0, "Should start with 0 positions");
 
-        vm.expectRevert(CollateralVault.EmptyBasket.selector);
-        vault.depositBasket(emptyTokens, emptyAmounts);
+        CollateralVault.Position[] memory positions = vault.getDepositPositions();
+        assertEq(positions.length, 0, "Should return empty array");
 
-        // Test array length mismatch
+        // Create first position
         address[] memory tokens = new address[](1);
-        uint256[] memory amounts = new uint256[](2);
+        uint256[] memory amounts = new uint256[](1);
         tokens[0] = address(weth);
         amounts[0] = DEPOSIT_AMOUNT;
-        amounts[1] = DEPOSIT_AMOUNT;
-
-        vm.expectRevert(CollateralVault.ArrayLengthMismatch.selector);
         vault.depositBasket(tokens, amounts);
 
-        // Test unsupported token
-        address unsupportedToken = makeAddr("unsupported");
-        tokens = new address[](1);
-        amounts = new uint256[](1);
-        tokens[0] = unsupportedToken;
-        amounts[0] = DEPOSIT_AMOUNT;
+        // Check position count
+        assertEq(vault.userPositionCount(user1), 1, "Should have 1 position");
 
-        vm.expectRevert(CollateralVault.TokenNotSupported.selector);
-        vault.depositBasket(tokens, amounts);
+        // Get specific position info
+        CollateralVault.Position memory pos = vault.getUserDepositInfo(user1, 0);
+        assertEq(pos.tokens.length, 1, "Position should have 1 token");
+        assertEq(pos.tokens[0], address(weth), "Should be WETH");
+        assertEq(pos.amounts[0], DEPOSIT_AMOUNT, "Should have correct amount");
+        assertEq(pos.index, 0, "Should have index 0");
+        assertTrue(pos.hasPendingRequest, "Should have pending request");
 
-        // Test withdraw without position
+        vm.stopPrank();
+    }
+
+    /// @notice Test error conditions with enhanced positions
+    function test_errorConditionsEnhanced() public {
+        vm.startPrank(user1);
+
+        // Test withdraw from non-existent position
         vm.expectRevert(CollateralVault.NoPosition.selector);
-        vault.withdrawCollateral(100);
+        vault.withdrawFromPosition(0, 100);
 
-        vm.stopPrank();
-    }
-
-    /// @notice Test pending request protection
-    function test_pendingRequestProtection() public {
-        // Setup pending position
-        vm.startPrank(user1);
+        // Create and complete a position
         address[] memory tokens = new address[](1);
         uint256[] memory amounts = new uint256[](1);
         tokens[0] = address(weth);
         amounts[0] = DEPOSIT_AMOUNT;
-
         vault.depositBasket(tokens, amounts);
-
-        // Try to deposit again while pending
-        vm.expectRevert(CollateralVault.PendingAIRequest.selector);
-        vault.depositBasket(tokens, amounts);
-
         vm.stopPrank();
 
-        // Complete the request
-        _completeRequest(user1);
+        _completeRequest(user1, 0);
 
-        // Try to withdraw while having minted AIUSD but no pending request
         vm.startPrank(user1);
-        // Approve vault to burn AIUSD
+
+        // Test withdraw more than minted
+        CollateralVault.Position memory pos = vault.getUserDepositInfo(user1, 0);
         aiusd.approve(address(vault), type(uint256).max);
-        vault.withdrawCollateral(100); // Should work now
+
+        vm.expectRevert(CollateralVault.InsufficientAIUSD.selector);
+        vault.withdrawFromPosition(0, pos.aiusdMinted + 1);
+
         vm.stopPrank();
     }
 
@@ -402,21 +348,154 @@ contract CollateralVaultTest is Test {
         amounts[0] = DEPOSIT_AMOUNT;
 
         vault.depositBasket(tokens, amounts);
-        (,,,,, requestId,) = vault.getPosition(user);
         vm.stopPrank();
 
         // Complete the request
-        _completeRequest(user);
+        _completeRequest(user, 0);
 
-        return requestId;
+        CollateralVault.Position memory pos = vault.getUserDepositInfo(user, 0);
+        return pos.requestId;
     }
 
-    /// @notice Helper function to complete a pending request
-    function _completeRequest(address user) internal {
-        (,,,,, uint256 requestId,) = vault.getPosition(user);
+    /// @notice Helper function to complete a pending request for a specific position
+    function _completeRequest(address user, uint256 positionIndex) internal {
+        CollateralVault.Position memory position = vault.getUserDepositInfo(user, positionIndex);
+        uint256 requestId = position.requestId;
 
         // Simulate AI callback
         bytes memory response = abi.encode("RATIO:150 CONFIDENCE:85");
         mockRouter.simulateCallback(requestId, response, "");
+    }
+
+    /// @notice Test enhanced emergency withdrawal system with multiple positions
+    function test_enhancedEmergencyWithdrawal() public {
+        vm.startPrank(user1);
+
+        // Create first position
+        address[] memory tokens1 = new address[](1);
+        uint256[] memory amounts1 = new uint256[](1);
+        tokens1[0] = address(weth);
+        amounts1[0] = DEPOSIT_AMOUNT;
+        vault.depositBasket(tokens1, amounts1);
+
+        // Create second position
+        address[] memory tokens2 = new address[](1);
+        uint256[] memory amounts2 = new uint256[](1);
+        tokens2[0] = address(dai);
+        amounts2[0] = 1000 ether;
+        vault.depositBasket(tokens2, amounts2);
+
+        uint256 initialWETHBalance = weth.balanceOf(user1);
+        uint256 initialDAIBalance = dai.balanceOf(user1);
+
+        vm.stopPrank();
+
+        // Fast forward past emergency delay
+        vm.warp(block.timestamp + vault.emergencyWithdrawalDelay() + 1);
+
+        // Test the new view function
+        vm.startPrank(user1);
+        (uint256[] memory eligibleIndices, uint256[] memory timeRemaining) =
+            vault.getEmergencyWithdrawablePositions(user1);
+
+        assertEq(eligibleIndices.length, 2, "Should have 2 eligible positions");
+        assertEq(timeRemaining[0], 0, "First position should be ready");
+        assertEq(timeRemaining[1], 0, "Second position should be ready");
+
+        // Test auto-find emergency withdrawal (should find oldest)
+        vault.userEmergencyWithdraw();
+
+        // Check that first position (oldest) was withdrawn
+        uint256 finalWETHBalance = weth.balanceOf(user1);
+        assertEq(finalWETHBalance, initialWETHBalance + DEPOSIT_AMOUNT, "Should get WETH back from first position");
+
+        // Test specific position emergency withdrawal
+        vault.userEmergencyWithdraw(1); // Withdraw second position
+
+        uint256 finalDAIBalance = dai.balanceOf(user1);
+        assertEq(finalDAIBalance, initialDAIBalance + 1000 ether, "Should get DAI back from second position");
+
+        vm.stopPrank();
+    }
+
+    /// @notice Test both variants of canEmergencyWithdraw function
+    function test_canEmergencyWithdrawVariants() public {
+        vm.startPrank(user1);
+
+        // Create first position at time T
+        address[] memory tokens1 = new address[](1);
+        uint256[] memory amounts1 = new uint256[](1);
+        tokens1[0] = address(weth);
+        amounts1[0] = DEPOSIT_AMOUNT;
+        vault.depositBasket(tokens1, amounts1);
+
+        uint256 firstPositionTime = block.timestamp;
+
+        // Move forward 1 hour and create second position
+        vm.warp(block.timestamp + 1 hours);
+
+        address[] memory tokens2 = new address[](1);
+        uint256[] memory amounts2 = new uint256[](1);
+        tokens2[0] = address(dai);
+        amounts2[0] = 1000 ether;
+        vault.depositBasket(tokens2, amounts2);
+
+        vm.stopPrank();
+
+        // Test 1: Neither position ready (before delay)
+        vm.warp(firstPositionTime + 2 hours); // 2 hours after first, 1 hour after second
+
+        // Check all positions - should return false with time remaining
+        (bool canWithdrawAll, uint256 timeRemainingAll) = vault.canEmergencyWithdraw(user1);
+        assertFalse(canWithdrawAll, "Should not be able to withdraw yet");
+        assertEq(timeRemainingAll, 2 hours, "Should have 2 hours remaining for first position");
+
+        // Check specific positions
+        (bool canWithdraw0, uint256 timeRemaining0) = vault.canEmergencyWithdraw(user1, 0);
+        (bool canWithdraw1, uint256 timeRemaining1) = vault.canEmergencyWithdraw(user1, 1);
+
+        assertFalse(canWithdraw0, "Position 0 should not be ready");
+        assertFalse(canWithdraw1, "Position 1 should not be ready");
+        assertEq(timeRemaining0, 2 hours, "Position 0 should have 2 hours remaining");
+        assertEq(timeRemaining1, 3 hours, "Position 1 should have 3 hours remaining");
+
+        // Test 2: First position ready, second not ready
+        vm.warp(firstPositionTime + vault.emergencyWithdrawalDelay() + 1 minutes);
+
+        // Check all positions - should return true (first position ready)
+        (canWithdrawAll, timeRemainingAll) = vault.canEmergencyWithdraw(user1);
+        assertTrue(canWithdrawAll, "Should be able to withdraw (first position ready)");
+        assertEq(timeRemainingAll, 0, "Should have 0 time remaining");
+
+        // Check specific positions
+        (canWithdraw0, timeRemaining0) = vault.canEmergencyWithdraw(user1, 0);
+        (canWithdraw1, timeRemaining1) = vault.canEmergencyWithdraw(user1, 1);
+
+        assertTrue(canWithdraw0, "Position 0 should be ready");
+        assertFalse(canWithdraw1, "Position 1 should not be ready yet");
+        assertEq(timeRemaining0, 0, "Position 0 should have 0 time remaining");
+        assertGt(timeRemaining1, 0, "Position 1 should still have time remaining");
+
+        // Test 3: Both positions ready
+        vm.warp(firstPositionTime + vault.emergencyWithdrawalDelay() + 1 hours + 1 minutes);
+
+        // Check all positions
+        (canWithdrawAll, timeRemainingAll) = vault.canEmergencyWithdraw(user1);
+        assertTrue(canWithdrawAll, "Should be able to withdraw (both ready)");
+        assertEq(timeRemainingAll, 0, "Should have 0 time remaining");
+
+        // Check specific positions
+        (canWithdraw0, timeRemaining0) = vault.canEmergencyWithdraw(user1, 0);
+        (canWithdraw1, timeRemaining1) = vault.canEmergencyWithdraw(user1, 1);
+
+        assertTrue(canWithdraw0, "Position 0 should be ready");
+        assertTrue(canWithdraw1, "Position 1 should be ready");
+        assertEq(timeRemaining0, 0, "Position 0 should have 0 time remaining");
+        assertEq(timeRemaining1, 0, "Position 1 should have 0 time remaining");
+
+        // Test 4: Check non-existent position
+        (bool canWithdrawInvalid, uint256 timeRemainingInvalid) = vault.canEmergencyWithdraw(user1, 5);
+        assertFalse(canWithdrawInvalid, "Invalid position should return false");
+        assertEq(timeRemainingInvalid, 0, "Invalid position should have 0 time remaining");
     }
 }

@@ -7,14 +7,18 @@ library SepoliaConfig {
 
     // Core system contracts (update after deployment)
     address public constant AI_STABLECOIN = 0xf0072115e6b861682e73a858fBEE36D512960c6f; // UPDATED
-    address public constant RISK_ORACLE_CONTROLLER = 0x5027a6b9f01E0b05Aa56E04A435029a8e9c810af; // UPDATED
-    address public constant COLLATERAL_VAULT = 0x459246db90DaA8959eF7F5842F257930a5C262B3; // UPDATED
+    address public constant RISK_ORACLE_CONTROLLER = 0xf8D3A0d5dE0368319123a43b925d01D867Af2229; // UPDATED - Enhanced with OUSG
+    address public constant COLLATERAL_VAULT = 0x3fAA42438AA43020611BC6a5269e109CC8B7a03c; // UPDATED - Enhanced with Dynamic Pricing
 
     // Mock tokens for testing - UPDATED with fresh deployment
     address public constant MOCK_DAI = 0xDE27C8D88E8F949A7ad02116F4D8BAca459af5D4;
     address public constant MOCK_WETH = 0xe1cb3cFbf87E27c52192d90A49DB6B331C522846;
     address public constant MOCK_WBTC = 0x4b62e33297A6D7eBe7CBFb92A0Bf175209467022;
     address public constant MOCK_USDC = 0x3bf2384010dCb178B8c19AE30a817F9ea1BB2c94;
+
+    // === RWA TOKENS (Ondo Finance) === UPDATED
+    address public constant MOCK_OUSG = 0x27675B132A8a872Fdc50A19b854A9398c62b8905; // DEPLOYED
+    address public constant OUSG_USD_PRICE_FEED = 0x13A0cc7e061d876512F548c92d327a2A10cc81F0; // DEPLOYED
 
     // Chainlink Functions Configuration
     address public constant CHAINLINK_FUNCTIONS_ROUTER = 0xb83E47C2bC239B3bf370bc41e1459A34b41238D0;

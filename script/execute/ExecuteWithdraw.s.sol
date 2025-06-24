@@ -69,7 +69,7 @@ contract ExecuteWithdrawScript is Script {
 
         // 4. Approve and execute withdrawal
         aiusd.approve(address(vault), withdrawAmount);
-        vault.withdrawCollateral(withdrawAmount);
+        vault.withdrawFromPosition(0, withdrawAmount);
 
         console.log("Partial withdrawal executed successfully");
 
@@ -114,7 +114,7 @@ contract ExecuteWithdrawScript is Script {
 
         // 3. Execute full withdrawal
         aiusd.approve(address(vault), aiusdBalance);
-        vault.withdrawCollateral(aiusdBalance);
+        vault.withdrawFromPosition(0, aiusdBalance);
 
         console.log("Full withdrawal executed successfully");
 
@@ -169,7 +169,7 @@ contract ExecuteWithdrawScript is Script {
             }
 
             aiusd.approve(address(vault), withdrawAmount);
-            vault.withdrawCollateral(withdrawAmount);
+            vault.withdrawFromPosition(0, withdrawAmount);
 
             uint256 newBalance = aiusd.balanceOf(user);
             console.log("New AIUSD balance:", newBalance);

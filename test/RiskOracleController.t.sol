@@ -529,11 +529,11 @@ contract RiskOracleControllerTest is Test {
         vm.stopPrank();
 
         // Test off-chain AI strategy with a new user to avoid vault position conflicts
-        address user2 = makeAddr("user2");
-        weth.mint(user2, DEPOSIT_AMOUNT);
-        vm.deal(user2, 1 ether);
+        address offChainUser = makeAddr("offChainUser");
+        weth.mint(offChainUser, DEPOSIT_AMOUNT);
+        vm.deal(offChainUser, 1 ether);
 
-        vm.startPrank(user2);
+        vm.startPrank(offChainUser);
         weth.approve(address(vault), type(uint256).max);
 
         address[] memory tokens = new address[](1);
@@ -543,7 +543,7 @@ contract RiskOracleControllerTest is Test {
 
         uint256 aiFee = controller.estimateTotalFee();
         vault.depositBasket{ value: aiFee }(tokens, amounts);
-        (,,,,, uint256 requestId2,) = vault.getPosition(user2);
+        (,,,,, uint256 requestId2,) = vault.getPosition(offChainUser);
         vm.stopPrank();
 
         vm.warp(block.timestamp + 31 minutes);
@@ -555,8 +555,8 @@ contract RiskOracleControllerTest is Test {
         vm.stopPrank();
 
         // Verify off-chain AI strategy worked
-        vm.startPrank(user2);
-        (,,, uint256 aiusdMinted2, uint256 collateralRatio2,,) = vault.getPosition(user2);
+        vm.startPrank(offChainUser);
+        (,,, uint256 aiusdMinted2, uint256 collateralRatio2,,) = vault.getPosition(offChainUser);
         assertEq(collateralRatio2, 14_500, "Off-chain AI should use 145% ratio");
         vm.stopPrank();
 

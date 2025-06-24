@@ -38,7 +38,14 @@ contract DeployVaultScript is Script {
         vault.addToken(SepoliaConfig.MOCK_WBTC, 95_000e18, 8, "WBTC"); // $95000 BTC with 8 decimals
         vault.addToken(SepoliaConfig.MOCK_USDC, 1e18, 6, "USDC"); // $1 USDC with 6 decimals
 
-        console.log("==Tokens added: DAI, WETH, WBTC, USDC");
+        // Add OUSG RWA token with dynamic pricing
+        vault.addToken(SepoliaConfig.MOCK_OUSG, 100e18, 18, "OUSG"); // $100 OUSG (fallback price)
+
+        // Configure OUSG to use dynamic price feed instead of static price
+        vault.setTokenPriceFeed(SepoliaConfig.MOCK_OUSG, SepoliaConfig.OUSG_USD_PRICE_FEED);
+
+        console.log("==Tokens added: DAI, WETH, WBTC, USDC, OUSG");
+        console.log("==OUSG configured with dynamic price feed for Treasury yield tracking");
 
         vm.stopBroadcast();
 

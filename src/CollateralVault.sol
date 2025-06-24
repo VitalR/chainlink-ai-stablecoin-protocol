@@ -5,7 +5,7 @@ import { AggregatorV3Interface } from "@chainlink/contracts/shared/interfaces/Ag
 import { IERC20 } from "@openzeppelin/token/ERC20/IERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin/utils/ReentrancyGuard.sol";
 import { OwnedThreeStep } from "@solbase/auth/OwnedThreeStep.sol";
-import { SafeERC20 } from "@openzeppelin/token/ERC20/SafeERC20.sol";
+import { SafeERC20 } from "@openzeppelin/token/ERC20/utils/SafeERC20.sol";
 
 import { IAIStablecoin } from "./interfaces/IAIStablecoin.sol";
 import { IRiskOracleController } from "./interfaces/IRiskOracleController.sol";
@@ -22,7 +22,7 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
 
     /// @notice Maximum basis points (100.00%)
     uint256 public constant MAX_BPS = 10_000;
-    
+
     /// @notice Default emergency withdrawal delay (4 hours)
     uint256 public constant DEFAULT_EMERGENCY_DELAY = 4 hours;
 
@@ -53,6 +53,7 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
     /// @param requestId Active AI assessment request identifier
     /// @param hasPendingRequest Whether an AI evaluation is currently in progress
     /// @param timestamp Position creation timestamp for emergency withdrawal timing
+    /// @param index Index of the deposit position
     struct Position {
         address[] tokens;
         uint256[] amounts;
@@ -62,16 +63,20 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
         uint256 requestId;
         bool hasPendingRequest;
         uint256 timestamp;
+        uint16 index;
     }
+
+    /// @notice User collateral position storage by account address and position index
+    /// @dev Maps each user to their deposit information for each position index
+    mapping(address user => mapping(uint256 index => Position)) private positions;
+
+    /// @notice Current position count for each user
+    /// @dev Tracks the next available position index for each user
+    mapping(address => uint256) public userPositionCount;
 
     /// @notice State mappings for token configuration and user positions
     /// @dev Maps token addresses to their configuration data for collateral acceptance
     mapping(address => TokenInfo) public supportedTokens;
-
-    /// @notice User collateral position storage by account address
-    /// @dev Maps user addresses to their complete collateral position data including tokens, amounts, and AI assessment
-    /// results
-    mapping(address => Position) public positions;
 
     /// @notice Token symbol lookup for AI analysis and display purposes
     /// @dev Maps token contract addresses to their human-readable symbol strings for AI processing (e.g., "WETH",
@@ -101,6 +106,7 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
     event TokenPriceUpdated(address indexed token, uint256 newPriceUSD);
     event ControllerUpdated(address indexed oldController, address indexed newController);
     event TokenPriceFeedUpdated(address indexed token, address indexed priceFeed);
+    event EmergencyWithdrawalDelayUpdated(uint256 oldDelay, uint256 newDelay);
 
     /// @notice Validation errors
     error TokenNotSupported();
@@ -121,21 +127,6 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
 
     /// @notice Access control errors
     error OnlyRiskOracleController();
-
-    /// @notice Emitted when tokens are successfully deposited for collateralization
-    event CollateralDeposited(address indexed user, address indexed token, uint256 amount, uint256 requestId);
-
-    /// @notice Emitted when AIUSD tokens are burned for collateral withdrawal
-    event CollateralWithdrawn(address indexed user, uint256 aiusdBurned, uint256 requestId);
-
-    /// @notice Emitted when emergency withdrawal occurs for pending requests
-    event EmergencyWithdrawal(address indexed user, uint256 requestId, uint256 timestamp);
-
-    /// @notice Emitted when a token price feed is updated
-    event TokenPriceFeedUpdated(address indexed token, address indexed priceFeed);
-
-    /// @notice Emitted when emergency withdrawal delay is updated
-    event EmergencyWithdrawalDelayUpdated(uint256 oldDelay, uint256 newDelay);
 
     // =============================================================
     //                     ACCESS CONTROL
@@ -181,7 +172,7 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
     function depositBasket(address[] calldata tokens, uint256[] calldata amounts) external payable {
         if (tokens.length != amounts.length) revert ArrayLengthMismatch();
         if (tokens.length == 0) revert EmptyBasket();
-        if (positions[msg.sender].hasPendingRequest) revert PendingAIRequest();
+        if (positions[msg.sender][userPositionCount[msg.sender]].hasPendingRequest) revert PendingAIRequest();
 
         uint256 totalValueUSD = 0;
 
@@ -202,7 +193,7 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
         if (totalValueUSD == 0) revert ZeroValueBasket();
 
         // Initialize user position with collateral data
-        positions[msg.sender] = Position({
+        positions[msg.sender][userPositionCount[msg.sender]] = Position({
             tokens: tokens,
             amounts: amounts,
             totalValueUSD: totalValueUSD,
@@ -210,7 +201,8 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
             collateralRatio: 0,
             requestId: 0,
             hasPendingRequest: true,
-            timestamp: block.timestamp
+            timestamp: block.timestamp,
+            index: uint16(userPositionCount[msg.sender])
         });
 
         emit CollateralDeposited(msg.sender, tokens, amounts, totalValueUSD);
@@ -226,7 +218,7 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
             riskOracleController.submitAIRequest{ value: msg.value }(msg.sender, basketData, totalValueUSD);
 
         // Associate request with user position
-        positions[msg.sender].requestId = requestId;
+        positions[msg.sender][userPositionCount[msg.sender]].requestId = requestId;
 
         emit AIRequestSubmitted(msg.sender, requestId, totalValueUSD);
 
@@ -236,6 +228,9 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
             uint256 refundAmount = balanceAfter - balanceBefore;
             payable(originalUser).transfer(refundAmount);
         }
+
+        // Update position count
+        userPositionCount[msg.sender]++;
     }
 
     /// @notice Process completed AI assessment and mint AIUSD tokens
@@ -249,9 +244,23 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
         external
         onlyRiskOracleController
     {
-        Position storage position = positions[user];
-        if (!position.hasPendingRequest) revert NoPendingRequest();
-        if (position.requestId != requestId) revert RequestIdMismatch();
+        // Find the position that matches this requestId
+        uint256 positionIndex;
+        bool found = false;
+        uint256 totalPositions = userPositionCount[user];
+
+        for (uint256 i = 0; i < totalPositions; i++) {
+            if (positions[user][i].requestId == requestId && positions[user][i].hasPendingRequest) {
+                positionIndex = i;
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) revert NoPendingRequest();
+
+        // Get the position storage reference after finding it
+        Position storage position = positions[user][positionIndex];
 
         // Finalize position with AI assessment results
         position.aiusdMinted = mintAmount;
@@ -269,9 +278,22 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
     /// @param user Address of the user requiring emergency withdrawal
     /// @param requestId Identifier of the problematic request
     function emergencyWithdraw(address user, uint256 requestId) external onlyRiskOracleController {
-        Position storage position = positions[user];
-        if (!position.hasPendingRequest) revert NoPendingRequest();
-        if (position.requestId != requestId) revert RequestIdMismatch();
+        // Find the position that matches this requestId
+        uint256 positionIndex;
+        bool found = false;
+        uint256 totalPositions = userPositionCount[user];
+
+        for (uint256 i = 0; i < totalPositions; i++) {
+            if (positions[user][i].requestId == requestId && positions[user][i].hasPendingRequest) {
+                positionIndex = i;
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) revert NoPendingRequest();
+
+        Position storage position = positions[user][positionIndex];
 
         // Return all deposited collateral to user
         for (uint256 i = 0; i < position.tokens.length; i++) {
@@ -279,38 +301,87 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
         }
 
         // Clear user position completely
-        delete positions[user];
+        delete positions[user][positionIndex];
 
         emit EmergencyWithdrawal(user, requestId, block.timestamp);
     }
 
-    /// @notice User-initiated emergency withdrawal after timeout period
+    /// @notice User-initiated emergency withdrawal after timeout period (auto-find oldest stuck position)
     /// @dev Allows direct withdrawal when controller becomes unresponsive (4+ hours)
+    /// @dev Automatically finds the oldest position with a stuck/pending request
     function userEmergencyWithdraw() external {
-        Position storage position = positions[msg.sender];
+        uint256 targetIndex = _findOldestPendingPosition(msg.sender);
+
+        // Check if this position is past the timeout
+        Position storage position = positions[msg.sender][targetIndex];
+        require(block.timestamp >= position.timestamp + emergencyWithdrawalDelay, "Must wait");
+
+        _executeEmergencyWithdrawal(msg.sender, targetIndex);
+    }
+
+    /// @notice User-initiated emergency withdrawal for a specific position
+    /// @dev Allows direct withdrawal when controller becomes unresponsive (4+ hours)
+    /// @param positionIndex Index of the specific position to emergency withdraw from
+    function userEmergencyWithdraw(uint256 positionIndex) external {
+        Position storage position = positions[msg.sender][positionIndex];
         if (!position.hasPendingRequest) revert NoPendingRequest();
+        if (position.timestamp == 0) revert NoPosition();
 
         // Enforce minimum waiting period for emergency access
         require(block.timestamp >= position.timestamp + emergencyWithdrawalDelay, "Must wait");
 
+        _executeEmergencyWithdrawal(msg.sender, positionIndex);
+    }
+
+    /// @notice Internal function to execute emergency withdrawal logic
+    /// @param user Address of the user
+    /// @param positionIndex Index of the position to withdraw from
+    function _executeEmergencyWithdrawal(address user, uint256 positionIndex) internal {
+        Position storage position = positions[user][positionIndex];
+
         // Return all collateral directly to user
         for (uint256 i = 0; i < position.tokens.length; i++) {
-            IERC20(position.tokens[i]).transfer(msg.sender, position.amounts[i]);
+            IERC20(position.tokens[i]).transfer(user, position.amounts[i]);
         }
 
         uint256 requestId = position.requestId;
 
         // Clear position and emit withdrawal event
-        delete positions[msg.sender];
+        delete positions[user][positionIndex];
 
-        emit EmergencyWithdrawal(msg.sender, requestId, block.timestamp);
+        emit EmergencyWithdrawal(user, requestId, block.timestamp);
     }
 
-    /// @notice Withdraw collateral by burning equivalent AIUSD tokens
-    /// @dev Burns user's AIUSD and returns proportional collateral amounts
+    /// @notice Find the oldest position with a pending request (regardless of timeout)
+    /// @param user Address to search positions for
+    /// @return positionIndex Index of the oldest pending position
+    function _findOldestPendingPosition(address user) internal view returns (uint256 positionIndex) {
+        uint256 totalPositions = userPositionCount[user];
+        uint256 oldestTimestamp = type(uint256).max;
+        uint256 targetIndex = type(uint256).max;
+
+        // Find the oldest position that has a pending request
+        for (uint256 i = 0; i < totalPositions; i++) {
+            Position storage pos = positions[user][i];
+            if (pos.hasPendingRequest && pos.timestamp > 0 && pos.timestamp < oldestTimestamp) {
+                oldestTimestamp = pos.timestamp;
+                targetIndex = i;
+            }
+        }
+
+        if (targetIndex == type(uint256).max) {
+            revert NoPendingRequest();
+        }
+
+        return targetIndex;
+    }
+
+    /// @notice Withdraw collateral from a specific position by burning equivalent AIUSD tokens
+    /// @dev Burns user's AIUSD and returns proportional collateral amounts from the specified position
+    /// @param positionIndex Index of the position to withdraw from
     /// @param amount AIUSD token amount to burn for collateral redemption
-    function withdrawCollateral(uint256 amount) external nonZeroAmount(amount) {
-        Position storage position = positions[msg.sender];
+    function withdrawFromPosition(uint256 positionIndex, uint256 amount) external nonZeroAmount(amount) {
+        Position storage position = positions[msg.sender][positionIndex];
         if (position.aiusdMinted == 0) revert NoPosition();
         if (position.hasPendingRequest) revert PendingAIRequest();
         if (amount > position.aiusdMinted) revert InsufficientAIUSD();
@@ -336,7 +407,7 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
 
         // Clear position if fully redeemed
         if (position.aiusdMinted == 0) {
-            delete positions[msg.sender];
+            delete positions[msg.sender][position.index];
         }
 
         emit CollateralWithdrawn(msg.sender, amount);
@@ -390,7 +461,7 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
     /// @param priceFeed Address of the Chainlink-compatible price feed (0 to disable)
     function setTokenPriceFeed(address token, address priceFeed) external onlyOwner {
         if (!supportedTokens[token].supported) revert TokenNotSupported();
-        
+
         tokenPriceFeeds[token] = priceFeed;
         emit TokenPriceFeedUpdated(token, priceFeed);
     }
@@ -430,7 +501,7 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
             bool hasPendingRequest
         )
     {
-        Position memory position = positions[user];
+        Position memory position = positions[user][userPositionCount[user] - 1];
         return (
             position.tokens,
             position.amounts,
@@ -442,24 +513,69 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
         );
     }
 
-    /// @notice Check emergency withdrawal eligibility and timing
+    /// @notice Check emergency withdrawal eligibility and timing for all positions
     /// @param user Address to evaluate for emergency withdrawal access
-    /// @return canWithdraw Whether immediate emergency withdrawal is permitted
-    /// @return timeRemaining Seconds until emergency withdrawal becomes available
+    /// @return canWithdraw Whether immediate emergency withdrawal is permitted for any position
+    /// @return timeRemaining Seconds until the oldest pending position becomes available (0 if any position is ready)
     function canEmergencyWithdraw(address user) external view returns (bool canWithdraw, uint256 timeRemaining) {
-        Position memory position = positions[user];
+        uint256 totalPositions = userPositionCount[user];
+        uint256 shortestTimeRemaining = type(uint256).max;
+        bool hasEligiblePosition = false;
+        bool hasPendingPosition = false;
 
-        if (!position.hasPendingRequest) {
+        // Check all positions for emergency withdrawal eligibility
+        for (uint256 i = 0; i < totalPositions; i++) {
+            Position storage position = positions[user][i];
+
+            if (position.hasPendingRequest && position.timestamp > 0) {
+                hasPendingPosition = true;
+                uint256 timeElapsed = block.timestamp - position.timestamp;
+
+                if (timeElapsed >= emergencyWithdrawalDelay) {
+                    // At least one position is ready for emergency withdrawal
+                    return (true, 0);
+                } else {
+                    uint256 remaining = emergencyWithdrawalDelay - timeElapsed;
+                    if (remaining < shortestTimeRemaining) {
+                        shortestTimeRemaining = remaining;
+                    }
+                }
+            }
+        }
+
+        if (!hasPendingPosition) {
             return (false, 0);
         }
 
-        uint256 timeElapsed = block.timestamp - position.timestamp;
-        uint256 requiredTime = emergencyWithdrawalDelay;
+        return (false, shortestTimeRemaining);
+    }
 
-        if (timeElapsed >= requiredTime) {
-            return (true, 0);
+    /// @notice Check emergency withdrawal eligibility and timing for a specific position
+    /// @param user Address to evaluate for emergency withdrawal access
+    /// @param positionIndex Index of the specific position to check
+    /// @return canWithdraw Whether immediate emergency withdrawal is permitted for this position
+    /// @return timeRemaining Seconds until this position becomes available for emergency withdrawal (0 if ready)
+    function canEmergencyWithdraw(address user, uint256 positionIndex)
+        external
+        view
+        returns (bool canWithdraw, uint256 timeRemaining)
+    {
+        if (positionIndex >= userPositionCount[user]) {
+            return (false, 0); // Position doesn't exist
+        }
+
+        Position storage position = positions[user][positionIndex];
+
+        if (!position.hasPendingRequest || position.timestamp == 0) {
+            return (false, 0); // No pending request or invalid position
+        }
+
+        uint256 timeElapsed = block.timestamp - position.timestamp;
+
+        if (timeElapsed >= emergencyWithdrawalDelay) {
+            return (true, 0); // Ready for emergency withdrawal
         } else {
-            return (false, requiredTime - timeElapsed);
+            return (false, emergencyWithdrawalDelay - timeElapsed); // Still waiting
         }
     }
 
@@ -474,12 +590,116 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
         view
         returns (bool hasPosition, bool isPending, uint256 requestId, uint256 timeElapsed)
     {
-        Position memory position = positions[user];
+        Position memory position = positions[user][userPositionCount[user] - 1];
 
         hasPosition = position.timestamp > 0;
         isPending = position.hasPendingRequest;
         requestId = position.requestId;
         timeElapsed = hasPosition ? block.timestamp - position.timestamp : 0;
+    }
+
+    /// @notice Get specific user deposit information by index
+    /// @param _user Address of the user to query
+    /// @param _index Index of the position to retrieve
+    /// @return position The Position struct containing all deposit information
+    function getUserDepositInfo(address _user, uint256 _index) external view returns (Position memory position) {
+        return positions[_user][_index];
+    }
+
+    /// @notice Retrieves all active deposit positions for the caller
+    /// @dev Iterates over all positions made by the caller and returns a memory array of active Position structs
+    /// @return activePositions Array of Position structs with non-zero AIUSD minted amounts
+    function getDepositPositions() external view returns (Position[] memory activePositions) {
+        uint256 totalPositions = userPositionCount[msg.sender];
+
+        // First pass: count active positions
+        uint256 activeCount = 0;
+        for (uint256 i = 0; i < totalPositions; i++) {
+            if (positions[msg.sender][i].timestamp > 0) {
+                activeCount++;
+            }
+        }
+
+        // Second pass: populate active positions array
+        activePositions = new Position[](activeCount);
+        uint256 currentIndex = 0;
+
+        for (uint256 i = 0; i < totalPositions; i++) {
+            Position memory position = positions[msg.sender][i];
+            if (position.timestamp > 0) {
+                activePositions[currentIndex] = position;
+                currentIndex++;
+            }
+        }
+
+        return activePositions;
+    }
+
+    /// @notice Get summary of all user positions
+    /// @param user Address to analyze
+    /// @return totalPositions Total number of positions created
+    /// @return activePositions Number of positions with remaining collateral
+    /// @return totalValueUSD Combined USD value across all active positions
+    /// @return totalAIUSDMinted Total AIUSD minted across all positions
+    function getPositionSummary(address user)
+        external
+        view
+        returns (uint256 totalPositions, uint256 activePositions, uint256 totalValueUSD, uint256 totalAIUSDMinted)
+    {
+        totalPositions = userPositionCount[user];
+
+        for (uint256 i = 0; i < totalPositions; i++) {
+            Position memory position = positions[user][i];
+            if (position.timestamp > 0) {
+                activePositions++;
+                totalValueUSD += position.totalValueUSD;
+                totalAIUSDMinted += position.aiusdMinted;
+            }
+        }
+
+        return (totalPositions, activePositions, totalValueUSD, totalAIUSDMinted);
+    }
+
+    /// @notice Get all positions eligible for emergency withdrawal
+    /// @param user Address to check positions for
+    /// @return eligibleIndices Array of position indices that can be emergency withdrawn
+    /// @return timeRemaining Array of seconds remaining before each position becomes eligible (0 if already eligible)
+    function getEmergencyWithdrawablePositions(address user)
+        external
+        view
+        returns (uint256[] memory eligibleIndices, uint256[] memory timeRemaining)
+    {
+        uint256 totalPositions = userPositionCount[user];
+        uint256[] memory tempIndices = new uint256[](totalPositions);
+        uint256[] memory tempTimeRemaining = new uint256[](totalPositions);
+        uint256 eligibleCount = 0;
+
+        // Find all positions with pending requests
+        for (uint256 i = 0; i < totalPositions; i++) {
+            Position storage pos = positions[user][i];
+            if (pos.hasPendingRequest && pos.timestamp > 0) {
+                tempIndices[eligibleCount] = i;
+
+                uint256 timeElapsed = block.timestamp - pos.timestamp;
+                if (timeElapsed >= emergencyWithdrawalDelay) {
+                    tempTimeRemaining[eligibleCount] = 0; // Already eligible
+                } else {
+                    tempTimeRemaining[eligibleCount] = emergencyWithdrawalDelay - timeElapsed;
+                }
+                eligibleCount++;
+            }
+        }
+
+        // Resize arrays to actual count
+        eligibleIndices = new uint256[](eligibleCount);
+        timeRemaining = new uint256[](eligibleCount);
+
+        for (uint256 i = 0; i < eligibleCount; i++) {
+            eligibleIndices[i] = tempIndices[i];
+            timeRemaining[i] = tempTimeRemaining[i];
+        }
+
+        return (eligibleIndices, timeRemaining);
     }
 
     // =============================================================
@@ -492,7 +712,7 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
     /// @return USD value with 18 decimal precision
     function _calculateUSDValue(address token, uint256 amount) internal view returns (uint256) {
         TokenInfo memory tokenInfo = supportedTokens[token];
-        
+
         // Check if token has a price feed configured
         address priceFeed = tokenPriceFeeds[token];
         if (priceFeed != address(0)) {
@@ -505,7 +725,8 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
                 uint80 /* answeredInRound */
             ) {
                 // Validate price data
-                if (price > 0 && block.timestamp - updatedAt <= 3600) { // 1 hour staleness check
+                if (price > 0 && block.timestamp - updatedAt <= 3600) {
+                    // 1 hour staleness check
                     // Convert from 8 decimals to 18 decimals and calculate USD value
                     uint256 priceUSD = uint256(price) * 1e10; // 8 decimals -> 18 decimals
                     return (amount * priceUSD) / (10 ** tokenInfo.decimals);
@@ -514,7 +735,7 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
                 // Price feed failed, fall back to static price
             }
         }
-        
+
         // Use static vault price as fallback
         return (amount * tokenInfo.priceUSD) / (10 ** tokenInfo.decimals);
     }

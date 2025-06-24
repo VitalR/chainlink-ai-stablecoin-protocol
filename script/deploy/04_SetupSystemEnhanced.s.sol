@@ -54,7 +54,7 @@ contract SetupSystemEnhancedScript is Script {
 
         // Note: The enhanced vault was deployed with all tokens pre-configured
         // This includes DAI, WETH, WBTC, USDC, and OUSG with dynamic pricing
-        
+
         // Verify OUSG RWA support is properly configured
         try vault.tokenPriceFeeds(SepoliaConfig.MOCK_OUSG) returns (address ousgFeed) {
             if (ousgFeed == SepoliaConfig.OUSG_USD_PRICE_FEED) {
@@ -80,11 +80,11 @@ contract SetupSystemEnhancedScript is Script {
 
         // 4. Verify system status
         console.log("\n4. System Status Check...");
-        
+
         (bool paused, uint256 failures, uint256 lastFailure, bool circuitBreakerActive) = controller.getSystemStatus();
         console.log("Controller paused:", paused);
         console.log("Circuit breaker active:", circuitBreakerActive);
-        
+
         require(!paused, "System is paused!");
         require(!circuitBreakerActive, "Circuit breaker is active!");
 
@@ -108,4 +108,5 @@ contract SetupSystemEnhancedScript is Script {
 }
 
 // Usage:
-// source .env && forge script script/deploy/04_SetupSystemEnhanced.s.sol:SetupSystemEnhancedScript --rpc-url $SEPOLIA_RPC_URL --broadcast --private-key $DEPLOYER_PRIVATE_KEY -vvvv 
+// source .env && forge script script/deploy/04_SetupSystemEnhanced.s.sol:SetupSystemEnhancedScript --rpc-url
+// $SEPOLIA_RPC_URL --broadcast --private-key $DEPLOYER_PRIVATE_KEY -vvvv

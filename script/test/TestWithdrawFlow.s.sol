@@ -91,7 +91,7 @@ contract TestWithdrawFlowScript is Script {
         // Check withdrawal eligibility
         if (hasPendingRequest) {
             console.log("[X] CANNOT WITHDRAW: AI request pending");
-            
+
             // Check emergency withdrawal eligibility
             (bool canEmergencyWithdraw, uint256 timeRemaining) = vault.canEmergencyWithdraw(user);
             if (canEmergencyWithdraw) {
@@ -101,7 +101,7 @@ contract TestWithdrawFlowScript is Script {
             }
         } else {
             console.log("[+] NORMAL WITHDRAWAL AVAILABLE");
-            
+
             // Calculate withdrawal options
             uint256 maxWithdrawable = aiusdBalance < aiusdMinted ? aiusdBalance : aiusdMinted;
             console.log("Maximum withdrawable AIUSD:", maxWithdrawable);
@@ -144,7 +144,7 @@ contract TestWithdrawFlowScript is Script {
 
         // Approve and execute withdrawal
         aiusd.approve(address(vault), withdrawAmount);
-        vault.withdrawCollateral(withdrawAmount);
+        vault.withdrawFromPosition(0, withdrawAmount);
 
         console.log("[SUCCESS] Partial withdrawal executed successfully");
 
@@ -193,7 +193,7 @@ contract TestWithdrawFlowScript is Script {
 
         // Execute full withdrawal
         aiusd.approve(address(vault), aiusdBalance);
-        vault.withdrawCollateral(aiusdBalance);
+        vault.withdrawFromPosition(0, aiusdBalance);
 
         console.log("[SUCCESS] Full withdrawal executed successfully");
 
@@ -234,7 +234,7 @@ contract TestWithdrawFlowScript is Script {
 
         // Check if user has pending request
         (,,,,, uint256 requestId, bool hasPendingRequest) = vault.getPosition(user);
-        
+
         if (!hasPendingRequest) {
             console.log("[!] No pending request found - cannot test emergency withdrawal");
             console.log("To test emergency withdrawal:");
@@ -249,7 +249,7 @@ contract TestWithdrawFlowScript is Script {
 
         // Check emergency withdrawal eligibility
         (bool canWithdraw, uint256 timeRemaining) = vault.canEmergencyWithdraw(user);
-        
+
         if (!canWithdraw) {
             console.log("[!] Emergency withdrawal not yet available");
             console.log("Time remaining:", timeRemaining, "seconds");
@@ -272,8 +272,9 @@ contract TestWithdrawFlowScript is Script {
         console.log("[SUCCESS] Emergency withdrawal executed successfully");
 
         // Verify position cleared
-        (,, uint256 finalTotalValue, uint256 finalAiusdMinted,, uint256 finalRequestId, bool finalHasPending) = vault.getPosition(user);
-        
+        (,, uint256 finalTotalValue, uint256 finalAiusdMinted,, uint256 finalRequestId, bool finalHasPending) =
+            vault.getPosition(user);
+
         console.log("Position status after emergency withdrawal:");
         console.log("- Total value:", finalTotalValue);
         console.log("- AIUSD minted:", finalAiusdMinted);
@@ -313,7 +314,7 @@ contract TestWithdrawFlowScript is Script {
 
         for (uint256 i = 1; i <= 3; i++) {
             console.log("\n--- Withdrawal #", i, "---");
-            
+
             uint256 currentBalance = aiusd.balanceOf(user);
             console.log("Current AIUSD balance:", currentBalance);
 
@@ -328,7 +329,7 @@ contract TestWithdrawFlowScript is Script {
             }
 
             aiusd.approve(address(vault), withdrawAmount);
-            vault.withdrawCollateral(withdrawAmount);
+            vault.withdrawFromPosition(0, withdrawAmount);
 
             uint256 newBalance = aiusd.balanceOf(user);
             console.log("New AIUSD balance:", newBalance);
@@ -361,7 +362,7 @@ contract TestWithdrawFlowScript is Script {
             console.log("Test 2: Has pending AI request");
             console.log("- Request ID:", requestId);
             console.log("- Normal withdrawal blocked: YES");
-            
+
             // Check emergency withdrawal eligibility
             (bool canEmergencyWithdraw, uint256 timeRemaining) = vault.canEmergencyWithdraw(user);
             if (canEmergencyWithdraw) {
@@ -381,30 +382,32 @@ contract TestWithdrawFlowScript is Script {
     function runComprehensiveTest() public {
         console.log("STARTING COMPREHENSIVE WITHDRAWAL FLOW TEST");
         console.log("================================================");
-        
+
         // Step 1: Check status
         checkWithdrawStatus();
-        
+
         // Step 2: Test edge cases first (non-destructive)
         testEdgeCases();
-        
+
         // Step 3: Test partial withdrawal if possible
         uint256 aiusdBalance = aiusd.balanceOf(user);
         (,,,,, uint256 requestId, bool hasPendingRequest) = vault.getPosition(user);
-        
+
         if (aiusdBalance > 0 && !hasPendingRequest) {
-            if (aiusdBalance >= 4) { // Ensure we can do 25% withdrawal
+            if (aiusdBalance >= 4) {
+                // Ensure we can do 25% withdrawal
                 console.log("\nTesting partial withdrawal...");
                 testPartialWithdraw();
             }
-            
+
             // Check if we still have balance for multiple withdrawals
             uint256 remainingBalance = aiusd.balanceOf(user);
-            if (remainingBalance >= 10) { // Ensure we can do 3x 10% withdrawals
+            if (remainingBalance >= 10) {
+                // Ensure we can do 3x 10% withdrawals
                 console.log("\nTesting multiple small withdrawals...");
                 testMultipleWithdrawals();
             }
-            
+
             // Final full withdrawal if any balance remains
             uint256 finalBalance = aiusd.balanceOf(user);
             if (finalBalance > 0) {
@@ -417,7 +420,7 @@ contract TestWithdrawFlowScript is Script {
         } else {
             console.log("\n[!] No AIUSD balance - cannot test normal withdrawals");
         }
-        
+
         console.log("\n[SUCCESS] COMPREHENSIVE WITHDRAWAL TEST COMPLETED");
         console.log("===========================================");
     }
@@ -430,4 +433,4 @@ contract TestWithdrawFlowScript is Script {
         if (token == SepoliaConfig.MOCK_USDC) return "USDC";
         return "UNKNOWN";
     }
-} 
+}

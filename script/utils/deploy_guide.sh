@@ -43,17 +43,18 @@ echo "🔧 DEPLOYMENT SEQUENCE:"
 echo "======================="
 
 echo ""
-echo "Step 1: Deploy Test Tokens"
-echo "---------------------------"
-read -p "Deploy mock tokens (DAI, WETH, WBTC)? (y/n): " deploy_tokens
+echo "Step 1: Deploy All Tokens"
+echo "--------------------------"
+read -p "Deploy all tokens (test tokens + RWA)? (y/n): " deploy_tokens
 if [ "$deploy_tokens" = "y" ]; then
-    forge script script/deploy/00_DeployTestTokens.s.sol:DeployTestTokensScript \
+    forge script script/deploy/00_DeployTokens.s.sol:DeployTokensScript \
         --rpc-url $SEPOLIA_RPC_URL \
         --broadcast \
         --private-key $DEPLOYER_PRIVATE_KEY \
         --etherscan-api-key $ETHERSCAN_API_KEY \
         --verify -vvvv
-    echo "✅ Test tokens deployed"
+    echo "✅ All tokens deployed (test + RWA)"
+    echo "⚠️  Remember to update SepoliaConfig.sol with deployed addresses!"
 fi
 
 echo ""
@@ -75,7 +76,7 @@ echo "Step 3: Deploy RiskOracleController (Chainlink Functions)"
 echo "---------------------------------------------------------"
 read -p "Deploy RiskOracleController with Chainlink Functions? (y/n): " deploy_controller
 if [ "$deploy_controller" = "y" ]; then
-    forge script script/deploy/02_DeployRiskOracleController.s.sol:DeployRiskOracleControllerScript \
+    forge script script/deploy/02_DeployController.s.sol:DeployControllerScript \
         --rpc-url $SEPOLIA_RPC_URL \
         --broadcast \
         --private-key $DEPLOYER_PRIVATE_KEY \
@@ -120,7 +121,8 @@ echo "🔗 Key Features Deployed:"
 echo "• AI-powered risk assessment via Chainlink Functions"
 echo "• Real-time price feeds via Chainlink Data Feeds"
 echo "• Dynamic collateral ratios (125%-200%)"
-echo "• Multi-token collateral support (ETH, WBTC, DAI)"
+echo "• Multi-token collateral support (ETH, WBTC, DAI, OUSG)"
+echo "• Real World Assets (RWA) integration with Treasury tokens"
 echo "• Decentralized oracle network integration"
 echo ""
 echo "🧪 Testing:"
