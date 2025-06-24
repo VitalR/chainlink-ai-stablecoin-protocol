@@ -90,6 +90,23 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
     /// @notice Emergency withdrawal delay (configurable, default 4 hours)
     uint256 public emergencyWithdrawalDelay;
 
+    /// @notice Authorized automation contracts for emergency withdrawals
+    mapping(address => bool) public authorizedAutomation;
+
+    /// @notice Token configuration for constructor initialization
+    /// @param token Address of the ERC20 token contract
+    /// @param priceUSD Initial USD price with 18 decimal precision
+    /// @param decimals Token decimal places for proper scaling
+    /// @param symbol Token symbol for AI analysis and display
+    /// @param priceFeed Optional Chainlink price feed address (address(0) for static pricing)
+    struct TokenConfig {
+        address token;
+        uint256 priceUSD;
+        uint8 decimals;
+        string symbol;
+        address priceFeed;
+    }
+
     // =============================================================
     //                    EVENTS & ERRORS
     // =============================================================
@@ -107,6 +124,7 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
     event ControllerUpdated(address indexed oldController, address indexed newController);
     event TokenPriceFeedUpdated(address indexed token, address indexed priceFeed);
     event EmergencyWithdrawalDelayUpdated(uint256 oldDelay, uint256 newDelay);
+    event AutomationAuthorized(address indexed automation, bool authorized);
 
     /// @notice Validation errors
     error TokenNotSupported();
@@ -138,6 +156,14 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
         _;
     }
 
+    /// @notice Restrict function access to authorized controllers or automation contracts
+    modifier onlyAuthorizedEmergencyWithdraw() {
+        if (msg.sender != address(riskOracleController) && !authorizedAutomation[msg.sender]) {
+            revert OnlyRiskOracleController();
+        }
+        _;
+    }
+
     /// @notice Ensure non-zero amounts for operations
     modifier nonZeroAmount(uint256 amount) {
         if (amount == 0) revert ZeroAmount();
@@ -148,14 +174,49 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
     //                  DEPLOYMENT & INITIALIZATION
     // =============================================================
 
-    /// @notice Deploy and initialize the CollateralVault
-    /// @dev Sets up core contract dependencies and ownership
+    /// @notice Deploy and initialize the CollateralVault with optional automation and tokens
+    /// @dev Sets up core contract dependencies, automation authorization, and initial token support
     /// @param _aiusd Address of the AIStablecoin token contract
     /// @param _riskOracleController Address of the AI risk assessment controller
-    constructor(address _aiusd, address _riskOracleController) OwnedThreeStep(msg.sender) {
+    /// @param _automationContract Optional automation contract to authorize (address(0) to skip)
+    /// @param _initialTokens Array of token configurations to add during deployment
+    constructor(
+        address _aiusd,
+        address _riskOracleController,
+        address _automationContract,
+        TokenConfig[] memory _initialTokens
+    ) OwnedThreeStep(msg.sender) {
+        // Set core contract references
         aiusd = IAIStablecoin(_aiusd);
         riskOracleController = IRiskOracleController(_riskOracleController);
         emergencyWithdrawalDelay = DEFAULT_EMERGENCY_DELAY;
+
+        // Authorize automation contract if provided
+        if (_automationContract != address(0)) {
+            authorizedAutomation[_automationContract] = true;
+            emit AutomationAuthorized(_automationContract, true);
+        }
+
+        // Add initial tokens if provided
+        for (uint256 i = 0; i < _initialTokens.length; i++) {
+            TokenConfig memory config = _initialTokens[i];
+
+            if (config.token == address(0)) continue; // Skip invalid tokens
+
+            // Add token with initial configuration
+            supportedTokens[config.token] =
+                TokenInfo({ priceUSD: config.priceUSD, decimals: config.decimals, supported: true });
+
+            tokenSymbols[config.token] = config.symbol;
+
+            // Set price feed if provided
+            if (config.priceFeed != address(0)) {
+                tokenPriceFeeds[config.token] = config.priceFeed;
+                emit TokenPriceFeedUpdated(config.token, config.priceFeed);
+            }
+
+            emit TokenAdded(config.token, config.priceUSD, config.decimals);
+        }
     }
 
     /// @notice Accept ETH refunds from failed operations
@@ -277,7 +338,7 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
     /// @dev Returns all collateral when AI processing fails or times out
     /// @param user Address of the user requiring emergency withdrawal
     /// @param requestId Identifier of the problematic request
-    function emergencyWithdraw(address user, uint256 requestId) external onlyRiskOracleController {
+    function emergencyWithdraw(address user, uint256 requestId) external onlyAuthorizedEmergencyWithdraw {
         // Find the position that matches this requestId
         uint256 positionIndex;
         bool found = false;
@@ -473,6 +534,16 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
         uint256 oldDelay = emergencyWithdrawalDelay;
         emergencyWithdrawalDelay = newDelay;
         emit EmergencyWithdrawalDelayUpdated(oldDelay, newDelay);
+    }
+
+    /// @notice Authorize automation contract for emergency withdrawals
+    /// @dev Allows automation contracts to call emergencyWithdraw on behalf of users
+    /// @param automation Address of the automation contract
+    /// @param authorized Whether the automation should be authorized
+    function setAutomationAuthorized(address automation, bool authorized) external onlyOwner {
+        if (automation == address(0)) revert ZeroAddress();
+        authorizedAutomation[automation] = authorized;
+        emit AutomationAuthorized(automation, authorized);
     }
 
     // =============================================================

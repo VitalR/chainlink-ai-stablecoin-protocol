@@ -8,7 +8,7 @@ library SepoliaConfig {
     // Core system contracts (update after deployment)
     address public constant AI_STABLECOIN = 0xf0072115e6b861682e73a858fBEE36D512960c6f; // UPDATED
     address public constant RISK_ORACLE_CONTROLLER = 0xf8D3A0d5dE0368319123a43b925d01D867Af2229; // UPDATED - Enhanced with OUSG
-    address public constant COLLATERAL_VAULT = 0x3fAA42438AA43020611BC6a5269e109CC8B7a03c; // UPDATED - Enhanced with Dynamic Pricing
+    address public constant COLLATERAL_VAULT = 0x207745583881e274a60D212F35C1F3e09f25f4bE; // UPDATED - Enhanced with Automation Support
 
     // Mock tokens for testing - UPDATED with fresh deployment
     address public constant MOCK_DAI = 0xDE27C8D88E8F949A7ad02116F4D8BAca459af5D4;
@@ -32,4 +32,7 @@ library SepoliaConfig {
     address public constant LINK_USD_PRICE_FEED = 0xc59E3633BAAC79493d908e63626716e204A45EdF;
     address public constant DAI_USD_PRICE_FEED = 0x14866185B1962B63C3Ea9E03Bc1da838bab34C19;
     address public constant USDC_USD_PRICE_FEED = 0xA2F78ab2355fe2f984D808B5CeE7FD0A93D5270E;
+
+    // Chainlink Automation contracts
+    address public constant AUTO_EMERGENCY_WITHDRAWAL = 0xFA4D7bb5EabF853aB213B940666989F3b3D43C8E; // UPDATED: Deployed automation contract
 }

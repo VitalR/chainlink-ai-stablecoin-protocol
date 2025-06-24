@@ -84,7 +84,12 @@ contract RWAIntegrationTest is Test {
 
         // Create vault with proper constructor
         address mockRiskController = makeAddr("mockRiskController");
-        CollateralVault e2eVault = new CollateralVault(address(e2eAIUSD), mockRiskController);
+        CollateralVault e2eVault = new CollateralVault(
+            address(e2eAIUSD),
+            mockRiskController,
+            address(0), // No automation contract
+            new CollateralVault.TokenConfig[](0) // No initial tokens
+        );
 
         // Connect the system
         e2eAIUSD.addVault(address(e2eVault));

@@ -73,7 +73,12 @@ contract RiskOracleControllerTest is Test {
 
         controller = new RiskOracleController(address(mockRouter), DON_ID, SUBSCRIPTION_ID, AI_SOURCE_CODE);
 
-        vault = new CollateralVault(address(aiusd), address(controller));
+        vault = new CollateralVault(
+            address(aiusd),
+            address(controller),
+            address(0), // No automation contract
+            new CollateralVault.TokenConfig[](0) // No initial tokens
+        );
 
         // Setup permissions
         aiusd.addVault(address(vault));

@@ -14,7 +14,7 @@ import { MockUSDC } from "./mocks/MockUSDC.sol";
 import { MockWETH } from "./mocks/MockWETH.sol";
 
 /// @title CollateralVaultTest - Comprehensive unit tests for CollateralVault
-/// @notice Tests vault-specific functionality: withdrawals, token management, emergency flows
+/// @notice Tests vault-specific functionality: withdrawals, token management, emergency flows, automation authorization
 contract CollateralVaultTest is Test {
     // Core contracts
     AIStablecoin public aiusd;
@@ -31,6 +31,8 @@ contract CollateralVaultTest is Test {
     address public owner = makeAddr("owner");
     address public user1 = makeAddr("user1");
     address public user2 = makeAddr("user2");
+    address public mockAutomation = makeAddr("mockAutomation");
+    address public unauthorizedCaller = makeAddr("unauthorizedCaller");
 
     // Test constants
     uint256 public constant INITIAL_BALANCE = 1000 ether;
@@ -44,6 +46,7 @@ contract CollateralVaultTest is Test {
     event TokenAdded(address indexed token, uint256 priceUSD, uint8 decimals);
     event TokenPriceUpdated(address indexed token, uint256 newPriceUSD);
     event ControllerUpdated(address indexed oldController, address indexed newController);
+    event AutomationAuthorized(address indexed automation, bool authorized);
 
     function setUp() public {
         vm.startPrank(owner);
@@ -61,16 +64,41 @@ contract CollateralVaultTest is Test {
         controller = new RiskOracleController(
             address(mockRouter), bytes32("fun_sepolia_1"), 123, "return 'RATIO:150 CONFIDENCE:85';"
         );
-        vault = new CollateralVault(address(aiusd), address(controller));
+
+        // Test the enhanced constructor with automation
+        CollateralVault.TokenConfig[] memory tokenConfigs = new CollateralVault.TokenConfig[](3);
+        tokenConfigs[0] = CollateralVault.TokenConfig({
+            token: address(weth),
+            priceUSD: 2000 * 1e18,
+            decimals: 18,
+            symbol: "WETH",
+            priceFeed: address(0)
+        });
+        tokenConfigs[1] = CollateralVault.TokenConfig({
+            token: address(usdc),
+            priceUSD: 1 * 1e18,
+            decimals: 6,
+            symbol: "USDC",
+            priceFeed: address(0)
+        });
+        tokenConfigs[2] = CollateralVault.TokenConfig({
+            token: address(dai),
+            priceUSD: 1 * 1e18,
+            decimals: 18,
+            symbol: "DAI",
+            priceFeed: address(0)
+        });
+
+        vault = new CollateralVault(
+            address(aiusd),
+            address(controller),
+            mockAutomation, // Pre-authorize automation
+            tokenConfigs // Pre-configure tokens
+        );
 
         // Setup permissions
         aiusd.addVault(address(vault));
         controller.setAuthorizedCaller(address(vault), true);
-
-        // Setup tokens
-        vault.addToken(address(weth), 2000 * 1e18, 18, "WETH");
-        vault.addToken(address(usdc), 1 * 1e18, 6, "USDC");
-        vault.addToken(address(dai), 1 * 1e18, 18, "DAI");
 
         // Mint tokens to users
         weth.mint(user1, INITIAL_BALANCE);
@@ -99,6 +127,169 @@ contract CollateralVaultTest is Test {
         usdc.approve(address(vault), type(uint256).max);
         dai.approve(address(vault), type(uint256).max);
         vm.stopPrank();
+    }
+
+    /// @notice Test that automation was pre-authorized during construction
+    function test_constructorAutomationAuthorization() public {
+        assertTrue(vault.authorizedAutomation(mockAutomation), "Automation should be pre-authorized");
+    }
+
+    /// @notice Test that tokens were pre-configured during construction
+    function test_constructorTokenConfiguration() public {
+        // Check that all tokens were added
+        (uint256 wethPrice,, bool wethSupported) = vault.supportedTokens(address(weth));
+        (uint256 usdcPrice,, bool usdcSupported) = vault.supportedTokens(address(usdc));
+        (uint256 daiPrice,, bool daiSupported) = vault.supportedTokens(address(dai));
+
+        assertTrue(wethSupported, "WETH should be supported");
+        assertTrue(usdcSupported, "USDC should be supported");
+        assertTrue(daiSupported, "DAI should be supported");
+
+        assertEq(wethPrice, 2000 * 1e18, "WETH price should be set");
+        assertEq(usdcPrice, 1 * 1e18, "USDC price should be set");
+        assertEq(daiPrice, 1 * 1e18, "DAI price should be set");
+    }
+
+    /// @notice Test automation authorization by owner
+    function test_setAutomationAuthorized() public {
+        address newAutomation = makeAddr("newAutomation");
+
+        vm.startPrank(owner);
+
+        // Test authorizing new automation
+        vm.expectEmit(true, false, false, true);
+        emit AutomationAuthorized(newAutomation, true);
+        vault.setAutomationAuthorized(newAutomation, true);
+
+        assertTrue(vault.authorizedAutomation(newAutomation), "New automation should be authorized");
+
+        // Test deauthorizing automation
+        vm.expectEmit(true, false, false, true);
+        emit AutomationAuthorized(newAutomation, false);
+        vault.setAutomationAuthorized(newAutomation, false);
+
+        assertFalse(vault.authorizedAutomation(newAutomation), "Automation should be deauthorized");
+
+        vm.stopPrank();
+    }
+
+    /// @notice Test that only owner can authorize automation
+    function test_setAutomationAuthorized_OnlyOwner() public {
+        address newAutomation = makeAddr("newAutomation");
+
+        vm.startPrank(unauthorizedCaller);
+        vm.expectRevert();
+        vault.setAutomationAuthorized(newAutomation, true);
+        vm.stopPrank();
+    }
+
+    /// @notice Test that zero address cannot be authorized
+    function test_setAutomationAuthorized_ZeroAddress() public {
+        vm.startPrank(owner);
+        vm.expectRevert(CollateralVault.ZeroAddress.selector);
+        vault.setAutomationAuthorized(address(0), true);
+        vm.stopPrank();
+    }
+
+    /// @notice Test that controller can perform emergency withdrawal
+    function test_emergencyWithdraw_Controller() public {
+        uint256 requestId = _setupPendingPosition(user1);
+
+        // Controller should be able to perform emergency withdrawal
+        vm.startPrank(address(controller));
+        vault.emergencyWithdraw(user1, requestId);
+        vm.stopPrank();
+
+        // Verify collateral was returned
+        assertEq(weth.balanceOf(user1), INITIAL_BALANCE, "User should receive collateral back");
+    }
+
+    /// @notice Test that authorized automation can perform emergency withdrawal
+    function test_emergencyWithdraw_AuthorizedAutomation() public {
+        uint256 requestId = _setupPendingPosition(user1);
+
+        // Authorized automation should be able to perform emergency withdrawal
+        vm.startPrank(mockAutomation);
+        vault.emergencyWithdraw(user1, requestId);
+        vm.stopPrank();
+
+        // Verify collateral was returned
+        assertEq(weth.balanceOf(user1), INITIAL_BALANCE, "User should receive collateral back");
+    }
+
+    /// @notice Test that unauthorized caller cannot perform emergency withdrawal
+    function test_emergencyWithdraw_Unauthorized() public {
+        uint256 requestId = _setupPendingPosition(user1);
+
+        // Unauthorized caller should not be able to perform emergency withdrawal
+        vm.startPrank(unauthorizedCaller);
+        vm.expectRevert(CollateralVault.OnlyRiskOracleController.selector);
+        vault.emergencyWithdraw(user1, requestId);
+        vm.stopPrank();
+    }
+
+    /// @notice Test that deauthorized automation cannot perform emergency withdrawal
+    function test_emergencyWithdraw_DeauthorizedAutomation() public {
+        uint256 requestId = _setupPendingPosition(user1);
+
+        // Deauthorize the automation
+        vm.startPrank(owner);
+        vault.setAutomationAuthorized(mockAutomation, false);
+        vm.stopPrank();
+
+        // Deauthorized automation should not be able to perform emergency withdrawal
+        vm.startPrank(mockAutomation);
+        vm.expectRevert(CollateralVault.OnlyRiskOracleController.selector);
+        vault.emergencyWithdraw(user1, requestId);
+        vm.stopPrank();
+    }
+
+    /// @notice Test emergency withdrawal with multiple authorized automation contracts
+    function test_emergencyWithdraw_MultipleAutomation() public {
+        address automation1 = makeAddr("automation1");
+        address automation2 = makeAddr("automation2");
+
+        // Authorize multiple automation contracts
+        vm.startPrank(owner);
+        vault.setAutomationAuthorized(automation1, true);
+        vault.setAutomationAuthorized(automation2, true);
+        vm.stopPrank();
+
+        uint256 requestId1 = _setupPendingPosition(user1);
+        uint256 requestId2 = _setupPendingPosition(user2);
+
+        uint256 user1InitialBalance = weth.balanceOf(user1);
+        uint256 user2InitialBalance = weth.balanceOf(user2);
+
+        // Both automation contracts should be able to perform emergency withdrawals
+        vm.startPrank(automation1);
+        vault.emergencyWithdraw(user1, requestId1);
+        vm.stopPrank();
+
+        vm.startPrank(automation2);
+        vault.emergencyWithdraw(user2, requestId2);
+        vm.stopPrank();
+
+        // Verify both users received their collateral
+        assertEq(weth.balanceOf(user1), user1InitialBalance + DEPOSIT_AMOUNT, "User1 should receive collateral");
+        assertEq(weth.balanceOf(user2), user2InitialBalance + DEPOSIT_AMOUNT, "User2 should receive collateral");
+    }
+
+    /// @notice Helper function to setup a position with pending request
+    function _setupPendingPosition(address user) internal returns (uint256 requestId) {
+        vm.startPrank(user);
+
+        address[] memory tokens = new address[](1);
+        uint256[] memory amounts = new uint256[](1);
+        tokens[0] = address(weth);
+        amounts[0] = DEPOSIT_AMOUNT;
+
+        vault.depositBasket(tokens, amounts);
+        vm.stopPrank();
+
+        // Get the request ID from the position
+        CollateralVault.Position memory position = vault.getUserDepositInfo(user, vault.userPositionCount(user) - 1);
+        return position.requestId;
     }
 
     /// @notice Test enhanced position management with multiple positions
