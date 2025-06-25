@@ -286,9 +286,13 @@ contract EngineSelectionTest is Test {
         (,,,,, uint256 requestId,) = vault.getPosition(user1);
         vm.stopPrank();
 
-        // Simulate BEDROCK response
-        bytes memory bedrockResponse = abi.encode("RATIO:135 CONFIDENCE:90 SOURCE:AMAZON_BEDROCK_AI");
-        mockRouter.simulateCallback(requestId, bedrockResponse, "");
+        // Process BEDROCK request manually (as owner who is authorized)
+        vm.startPrank(owner);
+        string memory bedrockResponse = "RATIO:135 CONFIDENCE:90 SOURCE:AMAZON_BEDROCK_AI";
+        controller.processWithOffChainAI(
+            requestId, bedrockResponse, RiskOracleController.ManualStrategy.PROCESS_WITH_OFFCHAIN_AI
+        );
+        vm.stopPrank();
 
         // Verify processing completed
         vm.startPrank(user1);

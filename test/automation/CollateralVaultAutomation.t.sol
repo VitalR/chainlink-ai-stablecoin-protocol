@@ -7,8 +7,10 @@ import { console } from "forge-std/console.sol";
 import { CollateralVault } from "../../src/CollateralVault.sol";
 import { AIStablecoin } from "../../src/AIStablecoin.sol";
 import { RiskOracleController } from "../../src/RiskOracleController.sol";
+import { IRiskOracleController } from "../../src/interfaces/IRiskOracleController.sol";
 import { MockWETH } from "../mocks/MockWETH.sol";
 import { AutoEmergencyWithdrawal } from "../../src/automation/AutoEmergencyWithdrawal.sol";
+import { MockChainlinkFunctionsRouter } from "../mocks/MockChainlinkFunctionsRouter.sol";
 
 /// @title CollateralVault Automation Authorization Unit Tests
 /// @notice Comprehensive tests for the automation authorization functionality
@@ -20,6 +22,7 @@ contract CollateralVaultAutomationTest is Test {
     RiskOracleController controller;
     MockWETH weth;
     AutoEmergencyWithdrawal automationContract;
+    MockChainlinkFunctionsRouter mockRouter;
 
     // Test addresses
     address deployer = address(this);
@@ -33,10 +36,13 @@ contract CollateralVaultAutomationTest is Test {
     event AutomationAuthorized(address indexed automation, bool authorized);
 
     function setUp() public {
+        // Deploy mock router
+        mockRouter = new MockChainlinkFunctionsRouter();
+
         // Deploy core contracts
         aiusd = new AIStablecoin();
         controller = new RiskOracleController(
-            0xb83E47C2bC239B3bf370bc41e1459A34b41238D0, // Sepolia Functions Router
+            address(mockRouter), // Use mock router instead of real one
             0x66756e2d657468657265756d2d7365706f6c69612d3100000000000000000000, // DON ID
             5075, // Subscription ID
             "const request = Functions.makeHttpRequest({ url: 'https://example.com' }); return Functions.encodeString('test');" // AI
@@ -369,7 +375,7 @@ contract CollateralVaultAutomationTest is Test {
         amounts[0] = amount;
 
         vm.prank(user);
-        vault.depositBasket(tokens, amounts);
+        vault.depositBasket(tokens, amounts, IRiskOracleController.Engine.TEST_TIMEOUT);
 
         // Verify position was created
         (bool hasPosition, bool isPending,,) = vault.getPositionStatus(user);

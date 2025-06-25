@@ -89,12 +89,12 @@ contract PriceFeedIntegrationTest is Test {
         // Don't configure any feeds
         string memory jsonPrices = controller.getCurrentPricesForTesting();
 
-        // Should use fallback prices: BTC=$30,000, ETH=$2,000, LINK=$15, DAI=$1, USDC=$1
+        // Should use fallback prices: BTC=$30,000, ETH=$2,000, LINK=$15, DAI=$1, USDC=$1, OUSG=$100
         assertTrue(bytes(jsonPrices).length > 0);
         console.log("Fallback Prices:", jsonPrices);
 
-        // Should contain fallback values including LINK
-        bytes memory expected = bytes('{"BTC": 30000, "ETH": 2000, "LINK": 15, "DAI": 1, "USDC": 1}');
+        // Should contain fallback values including LINK and OUSG
+        bytes memory expected = bytes('{"BTC": 30000, "ETH": 2000, "LINK": 15, "DAI": 1, "USDC": 1, "OUSG": 100}');
         assertEq(keccak256(bytes(jsonPrices)), keccak256(expected));
     }
 

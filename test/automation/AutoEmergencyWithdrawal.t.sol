@@ -8,6 +8,8 @@ import { AutoEmergencyWithdrawal } from "../../src/automation/AutoEmergencyWithd
 import { CollateralVault } from "../../src/CollateralVault.sol";
 import { AIStablecoin } from "../../src/AIStablecoin.sol";
 import { RiskOracleController } from "../../src/RiskOracleController.sol";
+import { IRiskOracleController } from "../../src/interfaces/IRiskOracleController.sol";
+import { ICollateralVault } from "../../src/interfaces/ICollateralVault.sol";
 
 import { MockChainlinkFunctionsRouter } from "../mocks/MockChainlinkFunctionsRouter.sol";
 import { MockWETH } from "../mocks/MockWETH.sol";
@@ -159,7 +161,7 @@ contract AutoEmergencyWithdrawalTest is Test {
         tokens[0] = address(weth);
         amounts[0] = DEPOSIT_AMOUNT;
 
-        vault.depositBasket(tokens, amounts);
+        vault.depositBasket(tokens, amounts, IRiskOracleController.Engine.TEST_TIMEOUT);
         vm.stopPrank();
 
         // Check upkeep before timeout
@@ -178,7 +180,7 @@ contract AutoEmergencyWithdrawalTest is Test {
         tokens[0] = address(weth);
         amounts[0] = DEPOSIT_AMOUNT;
 
-        vault.depositBasket(tokens, amounts);
+        vault.depositBasket(tokens, amounts, IRiskOracleController.Engine.TEST_TIMEOUT);
         vm.stopPrank();
 
         // Fast forward past emergency delay
@@ -196,23 +198,24 @@ contract AutoEmergencyWithdrawalTest is Test {
         vm.startPrank(user1);
         autoWithdrawer.optInToAutomation();
 
+        // Get user's initial balance BEFORE deposit
+        uint256 initialBalance = weth.balanceOf(user1);
+
         address[] memory tokens = new address[](1);
         uint256[] memory amounts = new uint256[](1);
         tokens[0] = address(weth);
         amounts[0] = DEPOSIT_AMOUNT;
 
-        uint256 initialBalance = weth.balanceOf(user1);
-        vault.depositBasket(tokens, amounts);
+        vault.depositBasket(tokens, amounts, IRiskOracleController.Engine.TEST_TIMEOUT);
         vm.stopPrank();
 
         // Fast forward past emergency delay
         vm.warp(block.timestamp + vault.emergencyWithdrawalDelay() + 1);
 
-        // Get upkeep data
+        // Perform emergency withdrawal automation
         (bool upkeepNeeded, bytes memory performData) = autoWithdrawer.checkUpkeep("");
         assertTrue(upkeepNeeded, "Should need upkeep");
 
-        // Perform upkeep
         vm.expectEmit(true, false, false, false);
         emit EmergencyWithdrawalTriggered(user1, 0, 1);
 
@@ -233,7 +236,7 @@ contract AutoEmergencyWithdrawalTest is Test {
         uint256[] memory amounts1 = new uint256[](1);
         tokens1[0] = address(weth);
         amounts1[0] = DEPOSIT_AMOUNT;
-        vault.depositBasket(tokens1, amounts1);
+        vault.depositBasket(tokens1, amounts1, IRiskOracleController.Engine.TEST_TIMEOUT);
         vm.stopPrank();
 
         vm.startPrank(user2);
@@ -243,7 +246,7 @@ contract AutoEmergencyWithdrawalTest is Test {
         uint256[] memory amounts2 = new uint256[](1);
         tokens2[0] = address(dai);
         amounts2[0] = 1000 ether;
-        vault.depositBasket(tokens2, amounts2);
+        vault.depositBasket(tokens2, amounts2, IRiskOracleController.Engine.TEST_TIMEOUT);
         vm.stopPrank();
 
         // User 3 opts in but doesn't deposit
@@ -289,7 +292,7 @@ contract AutoEmergencyWithdrawalTest is Test {
                 uint256[] memory amounts = new uint256[](1);
                 tokens[0] = address(weth);
                 amounts[0] = DEPOSIT_AMOUNT;
-                vault.depositBasket(tokens, amounts);
+                vault.depositBasket(tokens, amounts, IRiskOracleController.Engine.TEST_TIMEOUT);
             }
             vm.stopPrank();
         }
@@ -312,7 +315,7 @@ contract AutoEmergencyWithdrawalTest is Test {
 
     /// @notice Test admin emergency withdrawal
     function test_adminEmergencyWithdraw() public {
-        // Setup user with position
+        // Setup user with position using TEST_TIMEOUT engine to create stuck request
         vm.startPrank(user1);
         address[] memory tokens = new address[](1);
         uint256[] memory amounts = new uint256[](1);
@@ -320,18 +323,22 @@ contract AutoEmergencyWithdrawalTest is Test {
         amounts[0] = DEPOSIT_AMOUNT;
 
         uint256 initialBalance = weth.balanceOf(user1);
-        vault.depositBasket(tokens, amounts);
+        vault.depositBasket(tokens, amounts, IRiskOracleController.Engine.TEST_TIMEOUT);
         vm.stopPrank();
 
         // Fast forward past emergency delay
         vm.warp(block.timestamp + vault.emergencyWithdrawalDelay() + 1);
 
+        // Get the actual request ID from the user's position
+        CollateralVault.Position memory position = vault.getUserDepositInfo(user1, 0);
+        uint256 requestId = position.requestId;
+
         // Admin triggers emergency withdrawal
         vm.startPrank(owner);
         vm.expectEmit(true, false, false, false);
-        emit EmergencyWithdrawalTriggered(user1, 0, 1);
+        emit EmergencyWithdrawalTriggered(user1, 0, requestId);
 
-        autoWithdrawer.adminEmergencyWithdraw(user1, 0);
+        autoWithdrawer.adminEmergencyWithdraw(user1, requestId);
         vm.stopPrank();
 
         // Verify user got tokens back
@@ -349,7 +356,7 @@ contract AutoEmergencyWithdrawalTest is Test {
         uint256[] memory amounts = new uint256[](1);
         tokens[0] = address(weth);
         amounts[0] = DEPOSIT_AMOUNT;
-        vault.depositBasket(tokens, amounts);
+        vault.depositBasket(tokens, amounts, IRiskOracleController.Engine.TEST_TIMEOUT);
         vm.stopPrank();
 
         vm.warp(block.timestamp + vault.emergencyWithdrawalDelay() + 1);
@@ -405,9 +412,9 @@ contract AutoEmergencyWithdrawalTest is Test {
 
     /// @notice Test error conditions
     function test_errorConditions() public {
-        // Test admin emergency withdraw with invalid position
+        // Test admin emergency withdraw with invalid position (no stuck requests)
         vm.startPrank(owner);
-        vm.expectRevert(AutoEmergencyWithdrawal.InvalidPosition.selector);
+        vm.expectRevert(CollateralVault.NoPendingRequest.selector);
         autoWithdrawer.adminEmergencyWithdraw(user1, 0);
         vm.stopPrank();
 
