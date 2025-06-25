@@ -101,7 +101,13 @@ contract AutoEmergencyWithdrawal is AutomationCompatibleInterface, OwnedThreeSte
     /// @param requestId Request ID to withdraw
     function adminEmergencyWithdraw(address user, uint256 requestId) external onlyOwner {
         if (address(vault) == address(0)) revert VaultNotSet();
+
+        // Get position index for the event (assuming single position per user for simplicity)
+        uint256 positionIndex = 0;
+
         vault.emergencyWithdraw(user, requestId);
+
+        emit EmergencyWithdrawalTriggered(user, positionIndex, requestId);
     }
 
     // =============================================================
