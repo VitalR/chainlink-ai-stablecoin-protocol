@@ -9,8 +9,9 @@ import { CollateralVault } from "src/CollateralVault.sol";
 import { RiskOracleController } from "src/RiskOracleController.sol";
 import { SepoliaConfig } from "config/SepoliaConfig.sol";
 
-/// @title ExecuteDeposit - Test deposit scenarios for AI Stablecoin
-/// @notice Executes various deposit scenarios to test the system functionality
+/// @title ExecuteDeposit - Test deposit scenarios for AI Stablecoin with Enhanced Position Management
+/// @notice Executes various deposit scenarios to test the system functionality with multiple positions
+/// @dev For RWA/OUSG deposits, use ExecuteDepositWithRWA.s.sol instead
 contract ExecuteDepositScript is Script {
     AIStablecoin aiusd;
     CollateralVault vault;
@@ -19,22 +20,23 @@ contract ExecuteDepositScript is Script {
     IERC20 dai;
     IERC20 weth;
     IERC20 wbtc;
+    IERC20 usdc;
 
     address user;
     uint256 userPrivateKey;
 
     function setUp() public {
-        // Get target user (default to USER, or USER_2 if specified)
-        string memory targetUser = vm.envOr("DEPOSIT_TARGET_USER", string("USER"));
+        // Get target user (default to DEPLOYER, or USER if specified)
+        string memory targetUser = vm.envOr("DEPOSIT_TARGET_USER", string("DEPLOYER"));
 
-        if (keccak256(abi.encodePacked(targetUser)) == keccak256(abi.encodePacked("USER_2"))) {
-            user = vm.envAddress("USER_2_PUBLIC_KEY");
-            userPrivateKey = vm.envUint("USER_2_PRIVATE_KEY");
-            console.log("Using USER_2 credentials");
-        } else {
+        if (keccak256(abi.encodePacked(targetUser)) == keccak256(abi.encodePacked("USER"))) {
             user = vm.envAddress("USER_PUBLIC_KEY");
             userPrivateKey = vm.envUint("USER_PRIVATE_KEY");
             console.log("Using USER credentials");
+        } else {
+            user = vm.envAddress("DEPLOYER_PUBLIC_KEY");
+            userPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+            console.log("Using DEPLOYER credentials");
         }
 
         // Initialize contracts
@@ -42,10 +44,11 @@ contract ExecuteDepositScript is Script {
         vault = CollateralVault(payable(SepoliaConfig.COLLATERAL_VAULT));
         controller = RiskOracleController(SepoliaConfig.RISK_ORACLE_CONTROLLER);
 
-        // Initialize tokens
+        // Initialize standard crypto tokens
         dai = IERC20(SepoliaConfig.MOCK_DAI);
         weth = IERC20(SepoliaConfig.MOCK_WETH);
         wbtc = IERC20(SepoliaConfig.MOCK_WBTC);
+        usdc = IERC20(SepoliaConfig.MOCK_USDC);
     }
 
     /// @notice Execute single token deposit (WETH)
@@ -54,7 +57,9 @@ contract ExecuteDepositScript is Script {
 
         console.log("=== Single Token Deposit (WETH) ===");
 
-        // 1. Check balances
+        // 1. Check balances and existing positions
+        _checkUserStatus();
+
         uint256 wethBalance = weth.balanceOf(user);
         console.log("User WETH balance:", wethBalance);
         require(wethBalance >= 1 ether, "Insufficient WETH balance");
@@ -78,21 +83,8 @@ contract ExecuteDepositScript is Script {
         vault.depositBasket{ value: aiFee }(tokens, amounts);
         console.log("Deposit executed successfully");
 
-        // 6. Check position
-        (
-            address[] memory depositedTokens,
-            uint256[] memory depositedAmounts,
-            uint256 totalValue,
-            uint256 aiusdMinted,
-            uint256 collateralRatio,
-            uint256 requestId,
-            bool hasPendingRequest
-        ) = vault.getPosition(user);
-
-        console.log("Position created:");
-        console.log("- Total value:", totalValue);
-        console.log("- Request ID:", requestId);
-        console.log("- Has pending request:", hasPendingRequest);
+        // 6. Check updated position status
+        _checkUserStatus();
 
         vm.stopBroadcast();
     }
@@ -103,7 +95,9 @@ contract ExecuteDepositScript is Script {
 
         console.log("=== Diversified Basket Deposit ===");
 
-        // 1. Check balances
+        // 1. Check balances and existing positions
+        _checkUserStatus();
+
         uint256 wethBalance = weth.balanceOf(user);
         uint256 wbtcBalance = wbtc.balanceOf(user);
         uint256 daiBalance = dai.balanceOf(user);
@@ -144,13 +138,54 @@ contract ExecuteDepositScript is Script {
         vault.depositBasket{ value: aiFee }(tokens, amounts);
         console.log("Diversified deposit executed successfully");
 
-        // 5. Check position
-        (,, uint256 totalValue,,, uint256 requestId, bool hasPendingRequest) = vault.getPosition(user);
+        // 5. Check updated position status
+        _checkUserStatus();
 
-        console.log("Diversified position created:");
-        console.log("- Total value:", totalValue);
-        console.log("- Request ID:", requestId);
-        console.log("- Pending request:", hasPendingRequest);
+        vm.stopBroadcast();
+    }
+
+    /// @notice Execute stable coin focused deposit
+    function runStablecoinDeposit() public {
+        vm.startBroadcast(userPrivateKey);
+
+        console.log("=== Stablecoin-Focused Deposit ===");
+
+        // Check existing positions
+        _checkUserStatus();
+
+        uint256 daiBalance = dai.balanceOf(user);
+        uint256 usdcBalance = usdc.balanceOf(user);
+
+        console.log("User stablecoin balances:");
+        console.log("- DAI:", daiBalance);
+        console.log("- USDC:", usdcBalance);
+
+        // Stablecoin portfolio deposit
+        address[] memory tokens = new address[](2);
+        uint256[] memory amounts = new uint256[](2);
+
+        tokens[0] = address(dai);
+        amounts[0] = 2000 * 1e18; // 2000 DAI
+
+        tokens[1] = address(usdc);
+        amounts[1] = 1000 * 1e6; // 1000 USDC (6 decimals)
+
+        require(daiBalance >= amounts[0], "Insufficient DAI");
+        require(usdcBalance >= amounts[1], "Insufficient USDC");
+
+        // Approve tokens
+        dai.approve(address(vault), amounts[0]);
+        usdc.approve(address(vault), amounts[1]);
+
+        console.log("Approved stablecoins for deposit");
+
+        uint256 aiFee = controller.estimateTotalFee();
+        vault.depositBasket{ value: aiFee }(tokens, amounts);
+
+        console.log("Stablecoin deposit executed successfully - expecting high confidence due to low volatility!");
+
+        // Check updated status
+        _checkUserStatus();
 
         vm.stopBroadcast();
     }
@@ -160,6 +195,9 @@ contract ExecuteDepositScript is Script {
         vm.startBroadcast(userPrivateKey);
 
         console.log("=== Small Deposit Test ===");
+
+        // Check existing positions
+        _checkUserStatus();
 
         // Small DAI deposit
         address[] memory tokens = new address[](1);
@@ -177,55 +215,101 @@ contract ExecuteDepositScript is Script {
 
         console.log("Small deposit (100 DAI) executed successfully");
 
+        // Check updated status
+        _checkUserStatus();
+
         vm.stopBroadcast();
     }
 
-    /// @notice Check system status and user positions
-    function checkStatus() public view {
-        console.log("=== System Status ===");
-        console.log("Stablecoin address:", address(aiusd));
-        console.log("Vault address:", address(vault));
-        console.log("Controller address:", address(controller));
-
-        console.log("\n=== User Status ===");
+    /// @notice Enhanced status check with multiple position support
+    function _checkUserStatus() internal view {
+        console.log("=== USER STATUS CHECK ===");
         console.log("User address:", user);
         console.log("User ETH balance:", user.balance);
         console.log("User AIUSD balance:", aiusd.balanceOf(user));
 
-        // Check position
-        (
-            address[] memory tokens,
-            uint256[] memory amounts,
-            uint256 totalValue,
-            uint256 aiusdMinted,
-            uint256 collateralRatio,
-            uint256 requestId,
-            bool hasPendingRequest
-        ) = vault.getPosition(user);
+        // Get position summary
+        (uint256 totalPositions, uint256 activePositions, uint256 totalValueUSD, uint256 totalAIUSDMinted) =
+            vault.getPositionSummary(user);
 
-        console.log("\n=== User Position ===");
-        console.log("Total collateral value:", totalValue);
-        console.log("AIUSD minted:", aiusdMinted);
-        console.log("Collateral ratio:", collateralRatio);
-        console.log("Request ID:", requestId);
-        console.log("Has pending request:", hasPendingRequest);
+        console.log("");
+        console.log("=== POSITION SUMMARY ===");
+        console.log("Total positions created:", totalPositions);
+        console.log("Active positions:", activePositions);
+        console.log("Total collateral value: $", totalValueUSD / 1e18);
+        console.log("Total AIUSD minted:", totalAIUSDMinted);
 
-        if (tokens.length > 0) {
-            console.log("\n=== Deposited Tokens ===");
-            for (uint256 i = 0; i < tokens.length; i++) {
-                console.log("Token:", tokens[i]);
-                console.log("Amount:", amounts[i]);
+        if (totalPositions > 0) {
+            console.log("");
+            console.log("=== INDIVIDUAL POSITIONS ===");
+
+            // Show details of each position
+            for (uint256 i = 0; i < totalPositions; i++) {
+                try vault.getUserDepositInfo(user, i) returns (CollateralVault.Position memory position) {
+                    if (position.timestamp > 0) {
+                        // Position exists
+                        console.log("Position", i, ":");
+                        console.log("  - Value: $", position.totalValueUSD / 1e18);
+                        console.log("  - AIUSD minted:", position.aiusdMinted);
+                        console.log("  - Collateral ratio:", position.collateralRatio, "bps");
+                        console.log("  - Pending request:", position.hasPendingRequest);
+                        console.log("  - Request ID:", position.requestId);
+                        console.log("  - Token count:", position.tokens.length);
+
+                        if (position.hasPendingRequest) {
+                            uint256 timeElapsed = block.timestamp - position.timestamp;
+                            console.log("  - Time elapsed:", timeElapsed, "seconds");
+                        }
+                    }
+                } catch {
+                    console.log("Position", i, ": [EMPTY/DELETED]");
+                }
             }
         }
+
+        // Check emergency withdrawal status
+        (bool canWithdraw, uint256 timeRemaining) = vault.canEmergencyWithdraw(user);
+        if (canWithdraw || timeRemaining > 0) {
+            console.log("");
+            console.log("=== EMERGENCY STATUS ===");
+            console.log("Can emergency withdraw:", canWithdraw);
+            if (!canWithdraw && timeRemaining > 0) {
+                console.log("Time until emergency withdrawal:", timeRemaining, "seconds");
+                console.log("Time until emergency withdrawal:", timeRemaining / 3600, "hours");
+            }
+        }
+
+        console.log("");
+    }
+
+    /// @notice Comprehensive system status check
+    function checkSystemStatus() public view {
+        console.log("=== SYSTEM STATUS ===");
+        console.log("Stablecoin address:", address(aiusd));
+        console.log("Vault address:", address(vault));
+        console.log("Controller address:", address(controller));
+        console.log("");
+
+        // Check system operational status
+        (bool paused, uint256 failures, uint256 lastFailure, bool circuitBreakerActive) = controller.getSystemStatus();
+        console.log("AI processing paused:", paused);
+        console.log("Circuit breaker active:", circuitBreakerActive);
+        console.log("Failure count:", failures);
+        console.log("System operational:", !paused && !circuitBreakerActive);
+        console.log("");
+
+        _checkUserStatus();
     }
 
     /// @notice Run all deposit scenarios
     function run() public {
-        console.log("AI Stablecoin Deposit Execution Tests");
-        console.log("=========================================");
+        console.log("AI STABLECOIN CRYPTO DEPOSIT EXECUTION");
+        console.log("=====================================");
+        console.log("For RWA/OUSG deposits, use: ExecuteDepositWithRWA.s.sol");
+        console.log("=====================================");
 
         // Check initial status
-        checkStatus();
+        checkSystemStatus();
 
         // Choose scenario based on environment variable
         string memory scenario = vm.envOr("DEPOSIT_SCENARIO", string("single"));
@@ -234,13 +318,20 @@ contract ExecuteDepositScript is Script {
             runSingleTokenDeposit();
         } else if (keccak256(bytes(scenario)) == keccak256(bytes("diversified"))) {
             runDiversifiedDeposit();
+        } else if (keccak256(bytes(scenario)) == keccak256(bytes("stablecoin"))) {
+            runStablecoinDeposit();
         } else if (keccak256(bytes(scenario)) == keccak256(bytes("small"))) {
             runSmallDeposit();
         } else {
-            console.log("Unknown scenario. Available: single, diversified, small");
+            console.log("Unknown scenario. Available: single, diversified, stablecoin, small");
+            console.log("For RWA deposits: Use ExecuteDepositWithRWA.s.sol");
             revert("Invalid scenario");
         }
 
-        console.log("\nDeposit execution completed");
+        console.log("");
+        console.log("=== EXECUTION COMPLETED ===");
+        console.log("Position creation successful!");
+        console.log("AI analysis will complete in 1-5 minutes.");
+        console.log("Use 'checkSystemStatus()' to monitor progress.");
     }
 }

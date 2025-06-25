@@ -89,6 +89,17 @@ export const COLLATERAL_VAULT_ABI = [
     type: 'function',
   },
   {
+    inputs: [
+      { internalType: 'address[]', name: 'tokens', type: 'address[]' },
+      { internalType: 'uint256[]', name: 'amounts', type: 'uint256[]' },
+      { internalType: 'uint8', name: 'engine', type: 'uint8' },
+    ],
+    name: 'depositBasket',
+    outputs: [],
+    stateMutability: 'payable',
+    type: 'function',
+  },
+  {
     inputs: [{ internalType: 'address', name: 'user', type: 'address' }],
     name: 'getPosition',
     outputs: [

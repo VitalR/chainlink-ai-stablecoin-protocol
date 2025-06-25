@@ -231,6 +231,18 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
     /// @param tokens Array of ERC20 token addresses to deposit
     /// @param amounts Corresponding amounts for each token deposit
     function depositBasket(address[] calldata tokens, uint256[] calldata amounts) external payable {
+        depositBasket(tokens, amounts, IRiskOracleController.Engine.ALGO);
+    }
+
+    /// @notice Deposit multi-token collateral basket with specific AI engine selection
+    /// @dev Transfers tokens, calculates total value, and submits for AI evaluation with chosen engine
+    /// @param tokens Array of ERC20 token addresses to deposit
+    /// @param amounts Corresponding amounts for each token deposit
+    /// @param engine AI engine to use (ALGO, BEDROCK, or MOCK_FAIL for testing)
+    function depositBasket(address[] calldata tokens, uint256[] calldata amounts, IRiskOracleController.Engine engine)
+        public
+        payable
+    {
         if (tokens.length != amounts.length) revert ArrayLengthMismatch();
         if (tokens.length == 0) revert EmptyBasket();
         if (positions[msg.sender][userPositionCount[msg.sender]].hasPendingRequest) revert PendingAIRequest();
@@ -271,12 +283,12 @@ contract CollateralVault is OwnedThreeStep, ReentrancyGuard {
         // Prepare basket data for AI analysis
         bytes memory basketData = _encodeBasketData(tokens, amounts, totalValueUSD);
 
-        // Submit for AI risk assessment via Chainlink Functions
+        // Submit for AI risk assessment via Chainlink Functions with selected engine
         address originalUser = msg.sender;
         uint256 balanceBefore = address(this).balance - msg.value;
 
         uint256 requestId =
-            riskOracleController.submitAIRequest{ value: msg.value }(msg.sender, basketData, totalValueUSD);
+            riskOracleController.submitAIRequest{ value: msg.value }(msg.sender, basketData, totalValueUSD, engine);
 
         // Associate request with user position
         positions[msg.sender][userPositionCount[msg.sender]].requestId = requestId;

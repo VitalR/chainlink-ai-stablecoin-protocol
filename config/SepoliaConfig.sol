@@ -24,7 +24,7 @@ library SepoliaConfig {
     address public constant CHAINLINK_FUNCTIONS_ROUTER = 0xb83E47C2bC239B3bf370bc41e1459A34b41238D0;
     bytes32 public constant CHAINLINK_DON_ID = 0x66756e2d657468657265756d2d7365706f6c69612d3100000000000000000000;
     uint32 public constant CHAINLINK_GAS_LIMIT = 300000;
-    uint64 public constant CHAINLINK_SUBSCRIPTION_ID = 5075; // UPDATED with your new subscription
+    uint64 public constant CHAINLINK_SUBSCRIPTION_ID = 5075; // UPDATED
 
     // Chainlink Data Feeds (Sepolia Testnet)
     address public constant ETH_USD_PRICE_FEED = 0x694AA1769357215DE4FAC081bf1f309aDC325306;
@@ -34,5 +34,5 @@ library SepoliaConfig {
     address public constant USDC_USD_PRICE_FEED = 0xA2F78ab2355fe2f984D808B5CeE7FD0A93D5270E;
 
     // Chainlink Automation contracts
-    address public constant AUTO_EMERGENCY_WITHDRAWAL = 0xFA4D7bb5EabF853aB213B940666989F3b3D43C8E; // UPDATED: Deployed automation contract
+    address public constant AUTO_EMERGENCY_WITHDRAWAL = 0x44b2927029593B92640b98AAe638a21dA0c93653; // UPDATED: Deployed automation contract
 }

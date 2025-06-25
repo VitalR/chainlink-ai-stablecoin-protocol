@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
+import { IRiskOracleController } from "./IRiskOracleController.sol";
+
 /// @title ICollateralVault - Interface for CollateralVault contract
 /// @notice Interface for external contracts to interact with the CollateralVault
 interface ICollateralVault {
@@ -22,7 +24,19 @@ interface ICollateralVault {
     // =============================================================
 
     /// @notice Deposit multi-token collateral basket and initiate AI risk assessment
+    /// @dev Transfers tokens, calculates total value, and submits for AI evaluation
+    /// @param tokens Array of ERC20 token addresses to deposit
+    /// @param amounts Corresponding amounts for each token deposit
     function depositBasket(address[] calldata tokens, uint256[] calldata amounts) external payable;
+
+    /// @notice Deposit multi-token collateral basket with specific AI engine selection
+    /// @dev Transfers tokens, calculates total value, and submits for AI evaluation with chosen engine
+    /// @param tokens Array of ERC20 token addresses to deposit
+    /// @param amounts Corresponding amounts for each token deposit
+    /// @param engine AI engine to use (ALGO, BEDROCK, or TEST_TIMEOUT for testing)
+    function depositBasket(address[] calldata tokens, uint256[] calldata amounts, IRiskOracleController.Engine engine)
+        external
+        payable;
 
     /// @notice Withdraw collateral from a specific position by burning equivalent AIUSD tokens
     function withdrawFromPosition(uint256 positionIndex, uint256 amount) external;

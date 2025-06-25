@@ -298,7 +298,7 @@ contract RiskOracleControllerTest is Test {
         // Non-vault tries to submit AI request
         vm.startPrank(user1);
         vm.expectRevert(RiskOracleController.UnauthorizedCaller.selector);
-        controller.submitAIRequest(user1, abi.encode("test"), 1000e18);
+        controller.submitAIRequest(user1, abi.encode("test"), 1000e18, RiskOracleController.Engine.ALGO);
         vm.stopPrank();
     }
 

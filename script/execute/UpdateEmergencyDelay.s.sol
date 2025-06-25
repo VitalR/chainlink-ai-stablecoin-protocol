@@ -4,15 +4,15 @@ pragma solidity ^0.8.30;
 import { Script } from "forge-std/Script.sol";
 import { console } from "forge-std/console.sol";
 import { CollateralVault } from "../../src/CollateralVault.sol";
-import { SepoliaConfig } from "../config/SepoliaConfig.sol";
+import { SepoliaConfig } from "../../config/SepoliaConfig.sol";
 
 /// @title UpdateEmergencyDelay
 /// @notice Script to update the emergency withdrawal delay in the CollateralVault
-contract UpdateEmergencyDelayScript is Script, SepoliaConfig {
+contract UpdateEmergencyDelayScript is Script {
     function run() external {
         vm.startBroadcast();
 
-        CollateralVault vault = CollateralVault(COLLATERAL_VAULT);
+        CollateralVault vault = CollateralVault(payable(SepoliaConfig.COLLATERAL_VAULT));
 
         console.log("=== Emergency Withdrawal Delay Configuration ===");
         console.log("Vault address:", address(vault));
@@ -27,7 +27,7 @@ contract UpdateEmergencyDelayScript is Script, SepoliaConfig {
         try vm.envUint("NEW_EMERGENCY_DELAY") returns (uint256 envDelay) {
             newDelay = envDelay;
         } catch {
-            newDelay = 3600; // Default 1 hour
+            newDelay = 300; // Default 5 minutes for testing
         }
 
         console.log("Updating to new delay:", newDelay, "seconds");

@@ -49,6 +49,16 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
         FORCE_DEFAULT_MINT
     }
 
+    /// @notice AI engine types for hybrid AI architecture
+    /// @param ALGO Algorithmic AI engine (always available, fully decentralized)
+    /// @param BEDROCK Amazon Bedrock AI engine (advanced analysis, subject to DON constraints)
+    /// @param TEST_TIMEOUT Mock engine that simulates timeout for testing emergency automation
+    enum Engine {
+        ALGO,
+        BEDROCK,
+        TEST_TIMEOUT
+    }
+
     /// @notice Enhanced request tracking for comprehensive AI assessment lifecycle
     /// @param vault Address of the CollateralVault that initiated the request
     /// @param user Address of the user who deposited collateral
@@ -60,6 +70,7 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
     /// @param retryCount Number of retry attempts for failed requests
     /// @param manualProcessingRequested Whether user requested manual intervention
     /// @param manualRequestTime Timestamp when manual processing was requested
+    /// @param engine AI engine used for this request
     struct RequestInfo {
         address vault;
         address user;
@@ -71,6 +82,7 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
         bool processed;
         bool manualProcessingRequested;
         bytes basketData;
+        Engine engine;
     }
 
     /// @notice Chainlink Functions configuration for AI request processing
@@ -237,8 +249,9 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
     /// @param user Address of the user who deposited collateral
     /// @param basketData Encoded information about the collateral basket composition
     /// @param collateralValue Total USD value of the deposited collateral (18 decimals)
+    /// @param engine AI engine to use for this request (ALGO, BEDROCK, or TEST_TIMEOUT for testing)
     /// @return internalRequestId Unique identifier for tracking this AI assessment request
-    function submitAIRequest(address user, bytes calldata basketData, uint256 collateralValue)
+    function submitAIRequest(address user, bytes calldata basketData, uint256 collateralValue, Engine engine)
         external
         payable
         onlyAuthorizedCaller
@@ -248,6 +261,55 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
     {
         internalRequestId = requestCounter++;
 
+        // Handle TEST_TIMEOUT engine for testing automation
+        if (engine == Engine.TEST_TIMEOUT) {
+            // Store request but don't send to Chainlink - simulates stuck request
+            bytes32 mockRequestId = keccak256(abi.encodePacked("TEST_TIMEOUT", internalRequestId, block.timestamp));
+
+            requests[mockRequestId] = RequestInfo({
+                vault: msg.sender,
+                user: user,
+                basketData: basketData,
+                collateralValue: collateralValue,
+                timestamp: block.timestamp,
+                processed: false,
+                internalRequestId: internalRequestId,
+                retryCount: 0,
+                manualProcessingRequested: false,
+                manualRequestTime: 0,
+                engine: Engine.TEST_TIMEOUT
+            });
+
+            internalToChainlinkId[internalRequestId] = mockRequestId;
+            emit AIRequestSubmitted(internalRequestId, mockRequestId, user, msg.sender);
+            return internalRequestId;
+        }
+
+        // Handle BEDROCK engine for off-chain AI processing via scripts
+        if (engine == Engine.BEDROCK) {
+            // Store request but don't send to Chainlink - requires manual processing via script
+            bytes32 offChainRequestId = keccak256(abi.encodePacked("BEDROCK", internalRequestId, block.timestamp));
+
+            requests[offChainRequestId] = RequestInfo({
+                vault: msg.sender,
+                user: user,
+                basketData: basketData,
+                collateralValue: collateralValue,
+                timestamp: block.timestamp,
+                processed: false,
+                internalRequestId: internalRequestId,
+                retryCount: 0,
+                manualProcessingRequested: false,
+                manualRequestTime: 0,
+                engine: Engine.BEDROCK
+            });
+
+            internalToChainlinkId[internalRequestId] = offChainRequestId;
+            emit AIRequestSubmitted(internalRequestId, offChainRequestId, user, msg.sender);
+            return internalRequestId;
+        }
+
+        // Handle ALGO engine - default Chainlink Functions processing
         // Prepare Chainlink Functions request with AI source code
         FunctionsRequest.Request memory req;
         req.initializeRequestForInlineJavaScript(aiSourceCode);
@@ -273,7 +335,8 @@ contract RiskOracleController is OwnedThreeStep, FunctionsClient {
             internalRequestId: internalRequestId,
             retryCount: 0,
             manualProcessingRequested: false,
-            manualRequestTime: 0
+            manualRequestTime: 0,
+            engine: engine
         });
 
         // Maintain bidirectional mapping for request identification
