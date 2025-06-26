@@ -4,7 +4,7 @@ pragma solidity ^0.8.30;
 import { Script } from "forge-std/Script.sol";
 import { console } from "forge-std/console.sol";
 import { CollateralVault } from "../../src/CollateralVault.sol";
-import { SepoliaConfig } from "../../config/SepoliaConfig.sol";
+import { SepoliaConfig } from "config/SepoliaConfig.sol";
 
 /// @title UpdateEmergencyDelay
 /// @notice Script to update the emergency withdrawal delay in the CollateralVault
