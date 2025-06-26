@@ -130,19 +130,32 @@ vault.depositBasket([wethAddress, usdcAddress], [10 ether, 5000 * 1e6]);
 
 #### **Ready-to-Run Demos**
 
-- `HackathonAutomationDemo.s.sol` - Full Chainlink Automation showcase
-- `UserOptInDemo.s.sol` - User onboarding and opt-in process
-- `CompleteAutomationTest.s.sol` - End-to-end automation testing
+- `HackathonAutomationDemo.s.sol` - **Complete Chainlink Automation showcase** with full workflow
+- `TestEngineSelection.s.sol` - **AI Engine selection testing** (ALGO, BEDROCK, TEST_TIMEOUT)
 
 #### **How to Run**
 
 ```bash
-# Demo with real deployed contracts
+# Complete automation demo with real deployed contracts
 forge script script/demo/HackathonAutomationDemo.s.sol:HackathonAutomationDemoScript \
+  --sig "runFullDemo()" --rpc-url $SEPOLIA_RPC_URL --broadcast --private-key $DEPLOYER_PRIVATE_KEY
+
+# Test engine selection functionality
+forge script script/demo/TestEngineSelection.s.sol:TestEngineSelectionScript \
   --rpc-url $SEPOLIA_RPC_URL --broadcast --private-key $DEPLOYER_PRIVATE_KEY
 
-# Test complete E2E flow
+# Test complete E2E flow with all systems
 ./test/utils/run_tests.sh
+```
+
+#### **Additional Workflows**
+
+```bash
+# Bedrock AI workflow (enterprise-grade)
+source .env && BEDROCK_SCENARIO=single forge script script/bedrock/ExecuteDepositWithBedrock.s.sol:ExecuteDepositWithBedrockScript --rpc-url $SEPOLIA_RPC_URL --broadcast --private-key $DEPLOYER_PRIVATE_KEY -vv
+
+# Manual processing examples
+forge script script/execute/ProcessManualRequest.s.sol --sig "processWithAIResponse(uint256,string)" 123 "RATIO:145 CONFIDENCE:80 SOURCE:EXTERNAL_AI" --rpc-url $SEPOLIA_RPC_URL --broadcast --private-key $DEPLOYER_PRIVATE_KEY -vv
 ```
 
 ---

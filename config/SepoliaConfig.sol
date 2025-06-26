@@ -7,14 +7,17 @@ library SepoliaConfig {
 
     // Core system contracts (update after deployment)
     address public constant AI_STABLECOIN = 0xf0072115e6b861682e73a858fBEE36D512960c6f; // UPDATED
-    address public constant RISK_ORACLE_CONTROLLER = 0xf8D3A0d5dE0368319123a43b925d01D867Af2229; // UPDATED - Enhanced with OUSG
-    address public constant COLLATERAL_VAULT = 0x207745583881e274a60D212F35C1F3e09f25f4bE; // UPDATED - Enhanced with Automation Support
+    address public constant RISK_ORACLE_CONTROLLER = 0xB4F6B67C9Cd82bbBB5F97e2f40ebf972600980e4; // UPDATED - Enhanced with Engine Selection
+    address public constant COLLATERAL_VAULT = 0x1EeFd496e33ACE44e8918b08bAB9E392b46e1563; // UPDATED - Enhanced with Full Automation Support
 
     // Mock tokens for testing - UPDATED with fresh deployment
     address public constant MOCK_DAI = 0xDE27C8D88E8F949A7ad02116F4D8BAca459af5D4;
     address public constant MOCK_WETH = 0xe1cb3cFbf87E27c52192d90A49DB6B331C522846;
     address public constant MOCK_WBTC = 0x4b62e33297A6D7eBe7CBFb92A0Bf175209467022;
     address public constant MOCK_USDC = 0x3bf2384010dCb178B8c19AE30a817F9ea1BB2c94;
+    
+    // Official tokens on Sepolia
+    address public constant LINK_TOKEN = 0x779877A7B0D9E8603169DdbD7836e478b4624789; // Official Sepolia LINK
 
     // === RWA TOKENS (Ondo Finance) === UPDATED
     address public constant MOCK_OUSG = 0x27675B132A8a872Fdc50A19b854A9398c62b8905; // DEPLOYED
@@ -34,5 +37,5 @@ library SepoliaConfig {
     address public constant USDC_USD_PRICE_FEED = 0xA2F78ab2355fe2f984D808B5CeE7FD0A93D5270E;
 
     // Chainlink Automation contracts
-    address public constant AUTO_EMERGENCY_WITHDRAWAL = 0x44b2927029593B92640b98AAe638a21dA0c93653; // UPDATED: Deployed automation contract
+    address public constant AUTO_EMERGENCY_WITHDRAWAL = 0xE3a872020c0dB6e7c716c39e76A5C98f24cebF92; // UPDATED: Enhanced automation contract
 }

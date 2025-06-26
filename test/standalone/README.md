@@ -148,3 +148,63 @@ This standalone test uses the exact same:
 - Safety bounds and validation
 
 As the production Chainlink Functions implementation, ensuring consistency between testing and live deployment.
+
+# Standalone AI Testing Scripts
+
+This folder contains JavaScript scripts for testing AI analysis independently of the blockchain.
+
+## Scripts
+
+### `TestBedrockDirect.js` - **Template & Visualization**
+
+- **Purpose**: Learning tool and AI visualization
+- **Data**: Fixed test scenarios (Conservative, Balanced, Aggressive, Single Asset)
+- **Usage**: Understanding how Bedrock AI works
+- **Run**: `node TestBedrockDirect.js`
+
+### `ProcessBedrockDeposit.js` - **Production Integration** ⭐
+
+- **Purpose**: Process real user deposits with AI
+- **Data**: Actual deposit data from blockchain
+- **Usage**: Production Bedrock workflow
+- **Run**: `node ProcessBedrockDeposit.js --requestId 123 --tokens "DAI" --amounts "100" --totalValue 100`
+
+## Key Differences
+
+| Feature         | TestBedrockDirect.js | ProcessBedrockDeposit.js   |
+| --------------- | -------------------- | -------------------------- |
+| **Purpose**     | Template/Learning    | Production Processing      |
+| **Data Source** | Fixed scenarios      | Real blockchain deposits   |
+| **Integration** | Standalone           | Part of complete workflow  |
+| **Output**      | AI analysis examples | Ready-to-execute commands  |
+| **Use Case**    | Understanding AI     | Processing actual deposits |
+
+## Workflow Integration
+
+```
+🔗 Blockchain Deposit
+    ↓
+📋 script/bedrock/GetDepositData.s.sol
+    ↓
+🧠 ProcessBedrockDeposit.js (THIS FOLDER)
+    ↓
+⛓️ script/execute/ProcessManualRequest.s.sol
+```
+
+## Quick Commands
+
+```bash
+# Template/Learning (independent)
+node TestBedrockDirect.js
+
+# Production processing (integrated)
+node ProcessBedrockDeposit.js --requestId 123 --tokens "DAI" --amounts "100" --totalValue 100
+
+# Or with environment variables
+export REQUEST_ID=123 TOKENS="DAI" AMOUNTS="100" TOTAL_VALUE=100
+node ProcessBedrockDeposit.js
+```
+
+---
+
+🔗 **Complete workflow**: [../../docs/bedrock-ai-workflow.md](../../docs/bedrock-ai-workflow.md)
