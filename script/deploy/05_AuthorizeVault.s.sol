@@ -3,6 +3,7 @@ pragma solidity 0.8.30;
 
 import "forge-std/Script.sol";
 import { AIStablecoin } from "src/AIStablecoin.sol";
+import { AutoEmergencyWithdrawal } from "src/automation/AutoEmergencyWithdrawal.sol";
 import { CollateralVault } from "src/CollateralVault.sol";
 import { RiskOracleController } from "src/RiskOracleController.sol";
 import { SepoliaConfig } from "config/SepoliaConfig.sol";
@@ -14,6 +15,7 @@ contract AuthorizeVaultScript is Script {
     AIStablecoin aiusd;
     CollateralVault vault;
     RiskOracleController controller;
+    AutoEmergencyWithdrawal automation;
 
     address deployerPublicKey;
     uint256 deployerPrivateKey;
@@ -26,6 +28,7 @@ contract AuthorizeVaultScript is Script {
         aiusd = AIStablecoin(SepoliaConfig.AI_STABLECOIN);
         vault = CollateralVault(payable(SepoliaConfig.COLLATERAL_VAULT));
         controller = RiskOracleController(SepoliaConfig.RISK_ORACLE_CONTROLLER);
+        automation = AutoEmergencyWithdrawal(SepoliaConfig.AUTO_EMERGENCY_WITHDRAWAL);
     }
 
     function run() public {
@@ -36,6 +39,7 @@ contract AuthorizeVaultScript is Script {
         console.log("Stablecoin:", address(aiusd));
         console.log("Controller:", address(controller));
         console.log("Vault:", address(vault));
+        console.log("Automation:", address(automation));
         console.log("");
 
         // ==========================================
@@ -43,6 +47,13 @@ contract AuthorizeVaultScript is Script {
         // ==========================================
 
         console.log("1. Configuring Essential Permissions...");
+
+        // Set vault address in AutoEmergencyWithdrawal (was deployed with address(0))
+        try automation.setVault(address(vault)) {
+            console.log("   SUCCESS: Vault address set in AutoEmergencyWithdrawal");
+        } catch {
+            console.log("   INFO: Vault address already set in AutoEmergencyWithdrawal");
+        }
 
         // Add vault to stablecoin (allows minting)
         try aiusd.addVault(address(vault)) {
@@ -89,12 +100,36 @@ contract AuthorizeVaultScript is Script {
             console.log("   WARNING: OUSG not configured");
         }
 
+        try vault.supportedTokens(SepoliaConfig.MOCK_DAI) returns (uint256 price, uint8 decimals, bool supported) {
+            if (supported) {
+                console.log("   SUCCESS: DAI pre-configured ($%s, %s decimals)", price / 1e18, decimals);
+            }
+        } catch {
+            console.log("   WARNING: DAI not configured");
+        }
+
+        try vault.supportedTokens(SepoliaConfig.MOCK_USDC) returns (uint256 price, uint8 decimals, bool supported) {
+            if (supported) {
+                console.log("   SUCCESS: USDC pre-configured ($%s, %s decimals)", price / 1e18, decimals);
+            }
+        } catch {
+            console.log("   WARNING: USDC not configured");
+        }
+
         // Check automation is authorized
         bool automationAuthorized = vault.authorizedAutomation(SepoliaConfig.AUTO_EMERGENCY_WITHDRAWAL);
         if (automationAuthorized) {
             console.log("   SUCCESS: Automation contract pre-authorized");
         } else {
             console.log("   WARNING: Automation not authorized");
+        }
+
+        // Check automation has correct vault address
+        address automationVault = address(automation.vault());
+        if (automationVault == address(vault)) {
+            console.log("   SUCCESS: Automation contract connected to correct vault");
+        } else {
+            console.log("   WARNING: Automation vault address incorrect (current: %s)", automationVault);
         }
 
         // Check price feeds are connected
@@ -136,6 +171,7 @@ contract AuthorizeVaultScript is Script {
         console.log("");
         console.log("SUCCESS: Vault authorized to mint AIUSD");
         console.log("SUCCESS: Vault authorized to submit AI requests");
+        console.log("SUCCESS: Automation vault address configured");
         console.log("SUCCESS: Enhanced constructor already handled:");
         console.log("   - Token configuration (5 tokens)");
         console.log("   - Dynamic price feeds");

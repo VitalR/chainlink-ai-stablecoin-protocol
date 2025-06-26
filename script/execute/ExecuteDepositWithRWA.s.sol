@@ -28,16 +28,16 @@ contract ExecuteDepositWithRWAScript is Script {
 
     function setUp() public {
         // Get target user credentials
-        string memory targetUser = vm.envOr("DEPOSIT_TARGET_USER", string("USER"));
+        string memory targetUser = vm.envOr("DEPOSIT_TARGET_USER", string("DEPLOYER"));
 
-        if (keccak256(abi.encodePacked(targetUser)) == keccak256(abi.encodePacked("USER_2"))) {
-            user = vm.envAddress("USER_2_PUBLIC_KEY");
-            userPrivateKey = vm.envUint("USER_2_PRIVATE_KEY");
-            console.log("Using USER_2 credentials for RWA deposit");
-        } else {
+        if (keccak256(abi.encodePacked(targetUser)) == keccak256(abi.encodePacked("USER"))) {
             user = vm.envAddress("USER_PUBLIC_KEY");
             userPrivateKey = vm.envUint("USER_PRIVATE_KEY");
             console.log("Using USER credentials for RWA deposit");
+        } else {
+            user = vm.envAddress("DEPLOYER_PUBLIC_KEY");
+            userPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+            console.log("Using DEPLOYER credentials for RWA deposit");
         }
 
         // Initialize core contracts
@@ -308,3 +308,20 @@ contract ExecuteDepositWithRWAScript is Script {
         console.log("with superior AI-enhanced borrowing terms!");
     }
 }
+
+// Check RWA System Status:
+// source .env && forge script script/execute/ExecuteDepositWithRWA.s.sol:ExecuteDepositWithRWAScript --sig
+// "checkRWAStatus()" --rpc-url $SEPOLIA_RPC_URL --private-key $DEPLOYER_PRIVATE_KEY -vvvv
+
+// Execute Institutional OUSG Deposit (100 OUSG):
+// source .env && RWA_SCENARIO=institutional forge script
+// script/execute/ExecuteDepositWithRWA.s.sol:ExecuteDepositWithRWAScript --rpc-url $SEPOLIA_RPC_URL --broadcast
+// --private-key $DEPLOYER_PRIVATE_KEY -vvvv
+
+// Execute Large Institutional Deposit (5000 OUSG):
+// source .env && RWA_SCENARIO=large forge script script/execute/ExecuteDepositWithRWA.s.sol:ExecuteDepositWithRWAScript
+// --rpc-url $SEPOLIA_RPC_URL --broadcast --private-key $DEPLOYER_PRIVATE_KEY -vvvv
+
+// Execute Mixed Portfolio (OUSG + WETH):
+// source .env && RWA_SCENARIO=mixed forge script script/execute/ExecuteDepositWithRWA.s.sol:ExecuteDepositWithRWAScript
+// --rpc-url $SEPOLIA_RPC_URL --broadcast --private-key $DEPLOYER_PRIVATE_KEY -vvvv

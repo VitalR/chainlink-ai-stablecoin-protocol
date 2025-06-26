@@ -344,3 +344,25 @@ A: Manual processing system kicks in with external AI services and emergency wit
 ✅ **Production Ready**: Comprehensive security and recovery mechanisms
 
 This represents the **future of AI-powered DeFi** - where intelligent risk assessment creates more capital-efficient and fair financial protocols while maintaining enterprise-grade reliability! 🚀
+
+## 🧠 Bedrock AI Engine Workflow
+
+For **enterprise-grade AI analysis** using Amazon Bedrock, use our integrated workflow:
+
+```bash
+# 1. Execute Bedrock deposit
+source .env && BEDROCK_SCENARIO=single forge script script/bedrock/ExecuteDepositWithBedrock.s.sol:ExecuteDepositWithBedrockScript --rpc-url $SEPOLIA_RPC_URL --broadcast --private-key $DEPLOYER_PRIVATE_KEY -vv
+
+# 2. Get integrated processing command (RECOMMENDED)
+source .env && forge script script/bedrock/GetDepositData.s.sol:GetDepositDataScript --sig "getBedrockProcessingCommand()" --rpc-url $SEPOLIA_RPC_URL --private-key $DEPLOYER_PRIVATE_KEY -vv
+
+# 3. Run the integrated Bedrock processor (copy-paste from step 2 output)
+cd test/standalone && node ProcessBedrockDeposit.js --requestId 123 --tokens "DAI" --amounts "100" --totalValue 100
+
+# 4. Execute the final processing command (copy-paste from step 3 output)
+source .env && forge script script/execute/ProcessManualRequest.s.sol --sig "processWithAIResponse(uint256,string)" 123 "RATIO:145 CONFIDENCE:80 SOURCE:BEDROCK_AI" --rpc-url $SEPOLIA_RPC_URL --broadcast --private-key $DEPLOYER_PRIVATE_KEY -vv
+```
+
+**📖 Complete documentation:** [docs/bedrock-ai-workflow.md](docs/bedrock-ai-workflow.md)
+
+## Quick Deploy & Test

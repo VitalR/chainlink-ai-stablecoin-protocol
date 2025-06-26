@@ -303,3 +303,10 @@ contract ExecuteWithdrawScript is Script {
         console.log("AIUSD has been burned from user balance.");
     }
 }
+
+// source .env && forge script script/execute/ExecuteWithdraw.s.sol:ExecuteWithdrawScript --sig
+// "checkWithdrawEligibility()" --rpc-url $SEPOLIA_RPC_URL --private-key $DEPLOYER_PRIVATE_KEY -vvvv
+
+// source .env && WITHDRAW_SCENARIO=full POSITION_INDEX=2 forge script
+// script/execute/ExecuteWithdraw.s.sol:ExecuteWithdrawScript --rpc-url $SEPOLIA_RPC_URL --broadcast --private-key
+// $DEPLOYER_PRIVATE_KEY -vvvv

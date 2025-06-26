@@ -335,3 +335,6 @@ contract ExecuteDepositScript is Script {
         console.log("Use 'checkSystemStatus()' to monitor progress.");
     }
 }
+
+// source .env && DEPOSIT_SCENARIO=diversified forge script script/execute/ExecuteDeposit.s.sol:ExecuteDepositScript
+// --rpc-url $SEPOLIA_RPC_URL --broadcast --private-key $DEPLOYER_PRIVATE_KEY -vvvv

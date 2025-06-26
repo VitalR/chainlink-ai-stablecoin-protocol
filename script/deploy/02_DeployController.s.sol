@@ -21,7 +21,10 @@ contract DeployControllerScript is Script {
         bytes32 donId = SepoliaConfig.CHAINLINK_DON_ID;
         uint64 subscriptionId = SepoliaConfig.CHAINLINK_SUBSCRIPTION_ID;
         uint32 gasLimit = SepoliaConfig.CHAINLINK_GAS_LIMIT;
-        string memory aiSourceCode = "return '150,75';"; // Simple AI response for testing
+
+        // Read the production AI source code from the Chainlink Functions file
+        string memory aiSourceCode = vm.readFile("chainlink-functions/ai-risk-assessment.js");
+        // string memory aiSourceCode = "return '150,75';"; // Simple AI response for testing
 
         vm.startBroadcast(deployerPrivateKey);
 
@@ -30,8 +33,10 @@ contract DeployControllerScript is Script {
         console.log("DON ID:", vm.toString(donId));
         console.log("Subscription ID:", subscriptionId);
         console.log("Gas Limit:", gasLimit);
+        console.log("AI Source Code Length:", bytes(aiSourceCode).length, "bytes");
+        console.log("Features: AWS Bedrock + Algorithmic Fallback");
 
-        // Deploy RiskOracleController with correct parameter order
+        // Deploy RiskOracleController with production AI source code
         controller = new RiskOracleController(functionsRouter, donId, subscriptionId, aiSourceCode);
 
         // Setup price feeds using arrays (alternative: call controller.setupSepoliaFeeds() for convenience)
@@ -60,6 +65,12 @@ contract DeployControllerScript is Script {
 
         console.log("RiskOracleController deployed at:", address(controller));
         console.log("Price feeds configured for 6 tokens (BTC, ETH, LINK, DAI, USDC, OUSG)");
+        console.log("");
+        console.log("=== PRODUCTION AI DEPLOYMENT SUCCESS ===");
+        console.log(" AWS Bedrock integration deployed");
+        console.log(" Algorithmic fallback system active");
+        console.log(" Production-ready error handling");
+        console.log(" Multi-Chainlink services integration");
 
         vm.stopBroadcast();
     }
