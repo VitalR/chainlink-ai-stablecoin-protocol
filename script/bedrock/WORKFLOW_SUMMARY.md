@@ -42,4 +42,4 @@ source .env && forge script script/execute/ProcessManualRequest.s.sol --sig "pro
 
 ---
 
-📖 **Full docs**: [../../docs/bedrock-ai-workflow.md](../../docs/bedrock-ai-workflow.md)
+📖 **Full docs**: [../../docs/bedrock-ai-workflow-guide.md](../../docs/bedrock-ai-workflow-guide.md)

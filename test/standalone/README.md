@@ -207,4 +207,4 @@ node ProcessBedrockDeposit.js
 
 ---
 
-🔗 **Complete workflow**: [../../docs/bedrock-ai-workflow.md](../../docs/bedrock-ai-workflow.md)
+🔗 **Complete workflow**: [../../docs/bedrock-ai-workflow-guide.md](../../docs/bedrock-ai-workflow-guide.md)

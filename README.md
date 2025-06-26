@@ -363,6 +363,6 @@ cd test/standalone && node ProcessBedrockDeposit.js --requestId 123 --tokens "DA
 source .env && forge script script/execute/ProcessManualRequest.s.sol --sig "processWithAIResponse(uint256,string)" 123 "RATIO:145 CONFIDENCE:80 SOURCE:BEDROCK_AI" --rpc-url $SEPOLIA_RPC_URL --broadcast --private-key $DEPLOYER_PRIVATE_KEY -vv
 ```
 
-**📖 Complete documentation:** [docs/bedrock-ai-workflow.md](docs/bedrock-ai-workflow.md)
+**📖 Complete documentation:** [docs/bedrock-ai-workflow-guide.md](docs/bedrock-ai-workflow-guide.md)
 
 ## Quick Deploy & Test

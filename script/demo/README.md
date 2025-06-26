@@ -90,7 +90,7 @@ forge script script/demo/TestEngineSelection.s.sol:TestEngineSelectionScript \
 ## 📚 Related Documentation
 
 - **Automation**: [docs/chainlink-automation-guide.md](../../docs/chainlink-automation-guide.md)
-- **Bedrock AI**: [docs/bedrock-ai-workflow.md](../../docs/bedrock-ai-workflow.md)
+- **Bedrock AI**: [docs/bedrock-ai-workflow-guide.md](../../docs/bedrock-ai-workflow-guide.md)
 - **Engine Selection**: [docs/engine-selection.md](../../docs/engine-selection.md)
 - **Deployment Status**: [docs/project-deployment-status.md](../../docs/project-deployment-status.md)
 

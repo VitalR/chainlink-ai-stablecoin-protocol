@@ -1,5 +1,7 @@
 # AI Stablecoin Bedrock Workflow
 
+> 🔗 **TRANSACTION PROOFS:** For concrete on-chain evidence of this workflow in action, see [bedrock-ai-workflow-transaction-proofs.md](./bedrock-ai-workflow-transaction-proofs.md) - featuring live Sepolia transactions demonstrating the complete cycle from diversified deposit (WETH+WBTC+DAI+LINK) through AI analysis to withdrawal.
+
 ## Overview
 
 This document describes the complete workflow for using the **BEDROCK AI Engine** - our integrated Amazon Bedrock-powered risk assessment system that provides enterprise-grade AI analysis for real user deposits.
@@ -435,7 +437,7 @@ ai-stablecoin/
 │   ├── ProcessBedrockDeposit.js           # Integrated processor
 │   └── TestBedrockDirect.js               # Template/visualization
 └── docs/
-    └── bedrock-ai-workflow.md             # This documentation
+    └── bedrock-ai-workflow-guide.md             # This documentation
 ```
 
 ## Quick Reference

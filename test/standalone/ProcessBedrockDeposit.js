@@ -9,7 +9,7 @@ require('dotenv').config({ path: '../../.env' });
  * This script processes actual deposit data from script/bedrock/ExecuteDepositWithBedrock.s.sol
  * and generates AI responses for the script/execute/ProcessManualRequest.s.sol script.
  *
- * Part of the complete Bedrock AI workflow - see docs/bedrock-ai-workflow.md
+ * Part of the complete Bedrock AI workflow - see docs/bedrock-ai-workflow-guide.md
  *
  * Usage:
  * node ProcessBedrockDeposit.js --requestId 123 --tokens "DAI,WETH" --amounts "1000,0.5" --totalValue 2500

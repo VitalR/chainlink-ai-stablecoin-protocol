@@ -1,5 +1,7 @@
 # Bedrock AI Engine Scripts
 
+> 🔗 **LIVE TRANSACTION PROOFS:** See [../../docs/bedrock-ai-workflow-transaction-proofs.md](../../docs/bedrock-ai-workflow-transaction-proofs.md) for concrete on-chain evidence of the complete Bedrock workflow including diversified deposits (WETH+WBTC+DAI+LINK), AI processing, and withdrawals.
+
 This folder contains scripts for the **BEDROCK AI Engine** workflow - our enterprise-grade Amazon Bedrock integration for DeFi risk assessment.
 
 ## Quick Start Workflow
@@ -152,4 +154,4 @@ The **"2-10 minutes"** accounts for:
 
 ---
 
-📖 **See [bedrock-ai-workflow.md](../../docs/bedrock-ai-workflow.md) for complete documentation**
+📖 **See [bedrock-ai-workflow-guide.md](../../docs/bedrock-ai-workflow-guide.md) for complete documentation**
