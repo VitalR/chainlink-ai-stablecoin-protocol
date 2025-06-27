@@ -3,6 +3,9 @@ src = "src"
 out = "out"
 libs = ["lib"]
 fs_permissions = [{ access = "read", path = "./chainlink-functions" }]
+solc_version = "0.8.30"
+optimizer = true
+optimizer_runs = 10000
 
 remappings = [
     "forge-std/=lib/forge-std/src/",
@@ -15,10 +18,6 @@ remappings = [
     "@chainlink/data-feeds/=lib/chainlink/contracts/src/v0.8/data-feeds/"
 ]
 
-solc = "0.8.30"
-optimizer = true
-optimizer_runs = 10000
-
 [fmt]
 tab_width = 4
 line_length = 120
@@ -27,5 +26,14 @@ int_types = "long"
 quote_style = "double"
 wrap_comments = true
 number_underscore = "thousands"
+
+# Foundry configuration
+[fuzz]
+runs = 256
+
+[invariant]
+runs = 256
+depth = 15
+fail_on_revert = false
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

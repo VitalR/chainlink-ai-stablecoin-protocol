@@ -311,11 +311,13 @@ forge script script/execute/UpdateAISourceCode.s.sol --broadcast
 ### **Step 4: Verify Integration**
 
 ```bash
-# Test complete flow
-forge script script/test/TestCompleteFlow.s.sol --broadcast
+# Test the deployed system
+forge test --fork-url $SEPOLIA_RPC_URL
 
-# Test withdrawal flow
-forge script script/test/TestWithdrawFlow.s.sol --broadcast
+# Monitor Chainlink Functions activity via web interface
+# 1. Check subscription balance
+# 2. View request/response logs
+# 3. Verify AI callback execution
 ```
 
 ---
@@ -340,8 +342,8 @@ Test AWS Bedrock integration locally before deploying:
 ### **On-Chain Testing**
 
 ```bash
-# Test AI request submission
-forge script script/test/TestCompleteFlow.s.sol --broadcast
+# Run comprehensive test suite
+forge test
 
 # Monitor Chainlink Functions activity:
 # 1. Check subscription balance
@@ -352,8 +354,8 @@ forge script script/test/TestCompleteFlow.s.sol --broadcast
 ### **Price Feed Validation**
 
 ```bash
-# Test all price feeds
-forge script script/test/TestPriceFeeds.s.sol --broadcast
+# Test all price feeds via test suite
+forge test --match-test testPriceFeeds
 
 # Expected results:
 # - ETH/USD: ~$2,500
@@ -476,8 +478,8 @@ function emergencyUnpause() external onlyOwner {
 ### **Testing Resources**
 
 - **Standalone Demo**: `./test/standalone/demo.sh`
-- **Complete Flow Test**: `script/test/TestCompleteFlow.s.sol`
-- **Withdrawal Test**: `script/test/TestWithdrawFlow.s.sol`
+- **Test Suite**: `forge test` for comprehensive testing
+- **E2E Workflow**: `./test/utils/run_tests.sh`
 
 ### **Monitoring**
 

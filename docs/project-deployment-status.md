@@ -20,6 +20,7 @@ All core contracts are **live and functional**:
 | **CollateralVault**         | `0x207745583881e274a60D212F35C1F3e09f25f4bE` | ✅ Active |
 | **RiskOracleController**    | `0xf8D3A0d5dE0368319123a43b925d01D867Af2229` | ✅ Active |
 | **AutoEmergencyWithdrawal** | `0xFA4D7bb5EabF853aB213B940666989F3b3D43C8E` | ✅ Active |
+| **AIStablecoinCCIPBridge**  | `0xB76cD1A5c6d63042D316AabB2f40a5887dD4B1D4` | ✅ Active |
 
 ### 🪙 **Supported Collateral Assets**
 
@@ -27,6 +28,7 @@ All core contracts are **live and functional**:
 | -------- | -------------------------------------------- | -------------- | --------- |
 | **WETH** | `0xe1cb3cFbf87E27c52192d90A49DB6B331C522846` | Crypto         | ✅ Active |
 | **WBTC** | `0x4b62e33297A6D7eBe7CBFb92A0Bf175209467022` | Crypto         | ✅ Active |
+| **LINK** | `0x779877A7B0D9E8603169DdbD7836e478b4624789` | Oracle Token   | ✅ Active |
 | **DAI**  | `0xDE27C8D88E8F949A7ad02116F4D8BAca459af5D4` | Stablecoin     | ✅ Active |
 | **USDC** | `0x3bf2384010dCb178B8c19AE30a817F9ea1BB2c94` | Stablecoin     | ✅ Active |
 | **OUSG** | `0x27675B132A8a872Fdc50A19b854A9398c62b8905` | RWA (Treasury) | ✅ Active |
@@ -38,6 +40,14 @@ All core contracts are **live and functional**:
 | **Functions**  | Subscription ID: 5075 | ✅ Active |
 | **Data Feeds** | 5 Price Feeds         | ✅ Active |
 | **Automation** | Emergency Withdrawal  | ✅ Active |
+| **CCIP**       | Sepolia ↔ Fuji Bridge | ✅ Active |
+
+### ✅ **Cross-Chain Deployment (Avalanche Fuji)**
+
+| Contract                   | Address                                      | Status    |
+| -------------------------- | -------------------------------------------- | --------- |
+| **AIStablecoin (AIUSD)**   | `0x26D0f5BD1DAb1c02D1Fc198Fe6ECa2b22Ab276d7` | ✅ Active |
+| **AIStablecoinCCIPBridge** | `0xd6cE29223350252e3dD632f0bb1438e827da12b6` | ✅ Active |
 
 ---
 
@@ -126,6 +136,14 @@ vault.depositBasket([wethAddress, usdcAddress], [10 ether, 5000 * 1e6]);
 - **Time-based Recovery**: Graduated access to recovery functions
 - **Automation**: Chainlink Automation for stuck positions
 
+#### **6. Cross-Chain Bridge (CCIP)**
+
+- **Networks**: Ethereum Sepolia ↔ Avalanche Fuji
+- **Mechanism**: Secure burn-and-mint transfers
+- **Fee Options**: Native tokens (ETH/AVAX) or LINK payment
+- **Production Verified**: Live transactions with CCIP Explorer tracking
+- **Bridge Commands**: Ready-to-use workflow documentation
+
 ### 🔧 **Available Demo Scripts**
 
 #### **Ready-to-Run Demos**
@@ -180,9 +198,11 @@ forge script script/execute/ProcessManualRequest.s.sol --sig "processWithAIRespo
 
 #### **🔗 Cross-Platform Integration**
 
-- ✅ **Multiple Chainlink services**: Functions + Data Feeds + Automation
+- ✅ **Multiple Chainlink services**: Functions + Data Feeds + Automation + CCIP
 - ✅ **Seamless integration** between AI and blockchain
 - ✅ **Production-ready** implementation with comprehensive safety
+- ✅ **Cross-chain bridge**: AIUSD transfers between Ethereum and Avalanche
+- ✅ **Hackathon alignment**: Avalanche integration as requested by Chromion
 
 ### 🎖 **Unique Value Propositions**
 

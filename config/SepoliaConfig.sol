@@ -7,6 +7,7 @@ library SepoliaConfig {
 
     // Core system contracts (update after deployment)
     address public constant AI_STABLECOIN = 0xf0072115e6b861682e73a858fBEE36D512960c6f; // UPDATED
+    address public constant AI_STABLECOIN_BRIDGE = 0xB76cD1A5c6d63042D316AabB2f40a5887dD4B1D4; // CCIP Bridge for cross-chain transfers
     address public constant RISK_ORACLE_CONTROLLER = 0xB4F6B67C9Cd82bbBB5F97e2f40ebf972600980e4; // UPDATED - Enhanced with Engine Selection
     address public constant COLLATERAL_VAULT = 0x1EeFd496e33ACE44e8918b08bAB9E392b46e1563; // UPDATED - Enhanced with Full Automation Support
 

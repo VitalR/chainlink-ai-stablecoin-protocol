@@ -37,7 +37,7 @@ An innovative stablecoin protocol that uses **hybrid AI** (Amazon Bedrock + algo
 1. **AIStablecoin (AIUSD)** - The stablecoin token with vault-based minting
 2. **CollateralVault** - Manages collateral deposits and positions
 3. **RiskOracleController** - Handles Chainlink Functions integration and manual processing
-4. **MockChainlinkFunctionsRouter** - Testing router that simulates Chainlink Functions behavior
+4. **AIStablecoinCCIPBridge** - Cross-chain bridge for AIUSD transfers via Chainlink CCIP
 
 ### Hybrid AI System Features
 
@@ -85,6 +85,30 @@ When AI systems are unavailable, the system provides multiple recovery strategie
 2 hours+:  Emergency withdrawal available (Strategy 2)
 4 hours+:  Direct vault withdrawal available
 ```
+
+### 🌉 Cross-Chain Bridge Integration
+
+#### ✅ **Chainlink CCIP Bridge**
+
+- **Networks**: Ethereum Sepolia ↔ Avalanche Fuji
+- **Mechanism**: Secure burn-and-mint cross-chain transfers
+- **Fee Options**: Pay with native tokens (ETH/AVAX) or LINK
+- **Security**: Trusted remotes with vault authorization
+- **Architecture**: External bridge pattern (no existing contract modifications)
+
+#### ✅ **Bridge Features**
+
+- **Bidirectional**: Bridge AIUSD between Sepolia and Fuji
+- **Secure**: Burn-and-mint mechanism prevents double-spending
+- **Flexible Fees**: Choose between native token or LINK payment
+- **Production Ready**: Verified cross-chain transactions with CCIP Explorer tracking
+
+#### ✅ **Cross-Chain Value Proposition**
+
+- **AI Analysis on Sepolia**: Sophisticated risk assessment using Chainlink Functions + Bedrock
+- **DeFi Access on Avalanche**: Lower fees and faster transactions for DeFi activities
+- **Liquidity Bridge**: Move AIUSD to where it's needed most
+- **Hackathon Alignment**: Avalanche integration as requested by Chromion hackathon
 
 ## 🛠 Usage
 
@@ -342,6 +366,7 @@ A: Manual processing system kicks in with external AI services and emergency wit
 ✅ **Multiple Chainlink Services**: Functions + Data Feeds integration  
 ✅ **Dynamic Ratios**: Rewards smart diversification with lower collateral requirements  
 ✅ **Production Ready**: Comprehensive security and recovery mechanisms
+✅ **Cross-Chain Bridge**: Seamless AIUSD transfers between Ethereum and Avalanche via CCIP
 
 This represents the **future of AI-powered DeFi** - where intelligent risk assessment creates more capital-efficient and fair financial protocols while maintaining enterprise-grade reliability! 🚀
 
