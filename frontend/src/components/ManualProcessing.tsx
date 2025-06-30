@@ -1,8 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { useAccount, useWriteContract, useReadContract } from 'wagmi';
-import { CONTRACTS } from '@/lib/web3';
+import {
+  useAccount,
+  useWriteContract,
+  useReadContract,
+  useChainId,
+} from 'wagmi';
+import { getChainContracts } from '@/lib/web3';
 
 interface ManualProcessingProps {
   requestId: bigint;
@@ -14,12 +19,22 @@ export function ManualProcessing({
   onSuccess,
 }: ManualProcessingProps) {
   const { address } = useAccount();
+  const chainId = useChainId();
+  const contracts = getChainContracts(chainId);
   const { writeContract, isPending } = useWriteContract();
   const [processing, setProcessing] = useState(false);
 
+  // Check if risk oracle controller is available on current chain
+  const isControllerAvailable =
+    'RISK_ORACLE_CONTROLLER' in contracts &&
+    contracts.RISK_ORACLE_CONTROLLER &&
+    contracts.RISK_ORACLE_CONTROLLER !== '0x';
+
   // Check manual processing options
   const { data: manualOptions } = useReadContract({
-    address: CONTRACTS.RISK_ORACLE_CONTROLLER,
+    address: isControllerAvailable
+      ? contracts.RISK_ORACLE_CONTROLLER
+      : undefined,
     abi: [
       {
         inputs: [
@@ -40,16 +55,16 @@ export function ManualProcessing({
       },
     ],
     functionName: 'getManualProcessingOptions',
-    args: [requestId],
+    args: isControllerAvailable ? [requestId] : undefined,
   }) as { data: [boolean, bigint, number[]] | undefined };
 
   const requestManualProcessing = async () => {
-    if (!address || !requestId) return;
+    if (!address || !requestId || !isControllerAvailable) return;
 
     try {
       setProcessing(true);
       await writeContract({
-        address: CONTRACTS.RISK_ORACLE_CONTROLLER,
+        address: contracts.RISK_ORACLE_CONTROLLER!,
         abi: [
           {
             inputs: [
@@ -76,6 +91,24 @@ export function ManualProcessing({
     }
   };
 
+  // Show message if controller is not available
+  if (!isControllerAvailable) {
+    return (
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <div className="flex items-center space-x-2 mb-2">
+          <span className="text-yellow-600">⚠️</span>
+          <span className="font-medium text-yellow-800">
+            Manual Processing Not Available
+          </span>
+        </div>
+        <p className="text-sm text-yellow-700">
+          Manual processing is only available on Ethereum Sepolia where the Risk
+          Oracle Controller is deployed.
+        </p>
+      </div>
+    );
+  }
+
   if (!manualOptions) {
     return (
       <div className="bg-gray-50 rounded-lg p-4">
@@ -88,48 +121,72 @@ export function ManualProcessing({
 
   const [canProcess, timeRemaining] = manualOptions;
 
-  if (!canProcess) {
-    const minutes = Math.ceil(Number(timeRemaining) / 60);
-    return (
-      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-        <div className="flex items-center space-x-2 mb-2">
-          <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
-          <span className="font-medium text-yellow-800">Waiting for AI</span>
-        </div>
-        <p className="text-sm text-yellow-700 mb-2">
-          AI request is still processing. Manual processing will be available in{' '}
-          <strong>{minutes} minutes</strong>.
-        </p>
-        <div className="text-xs text-yellow-600">
-          Request ID: {requestId.toString()}
-        </div>
-      </div>
-    );
-  }
+  // Always show manual processing option, but with different messaging
+  const minutes = Math.ceil(Number(timeRemaining) / 60);
+  const isRecommendedTime = canProcess; // After 30+ minutes
 
   return (
-    <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+    <div
+      className={`border rounded-lg p-4 ${
+        isRecommendedTime
+          ? 'bg-orange-50 border-orange-200'
+          : 'bg-blue-50 border-blue-200'
+      }`}
+    >
       <div className="flex items-center space-x-2 mb-2">
-        <div className="w-3 h-3 bg-orange-400 rounded-full"></div>
-        <span className="font-medium text-orange-800">
-          Manual Processing Available
+        <div
+          className={`w-3 h-3 rounded-full ${
+            isRecommendedTime ? 'bg-orange-400' : 'bg-blue-400 animate-pulse'
+          }`}
+        ></div>
+        <span
+          className={`font-medium ${
+            isRecommendedTime ? 'text-orange-800' : 'text-blue-800'
+          }`}
+        >
+          Manual Processing {isRecommendedTime ? 'Recommended' : 'Available'}
         </span>
       </div>
-      <p className="text-sm text-orange-700 mb-3">
-        AI request has been stuck for over 30 minutes. You can request manual
-        processing from community validators.
-      </p>
+
+      {isRecommendedTime ? (
+        <p className="text-sm text-orange-700 mb-3">
+          AI request has been processing for over 30 minutes. Manual processing
+          by community validators is now recommended.
+        </p>
+      ) : (
+        <p className="text-sm text-blue-700 mb-3">
+          AI is still processing (⏱️ {minutes} min remaining). You can skip the
+          wait and request immediate manual processing by community validators.
+        </p>
+      )}
+
       <button
         onClick={requestManualProcessing}
         disabled={isPending || processing}
-        className="w-full bg-orange-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className={`w-full text-white py-2 px-4 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
+          isRecommendedTime
+            ? 'bg-orange-600 hover:bg-orange-700'
+            : 'bg-blue-600 hover:bg-blue-700'
+        }`}
       >
         {isPending || processing
           ? 'Requesting Manual Processing...'
-          : 'Request Manual Processing'}
+          : isRecommendedTime
+          ? 'Request Manual Processing (Recommended)'
+          : 'Skip AI Wait - Manual Process Now'}
       </button>
-      <div className="text-xs text-orange-600 mt-2">
+
+      <div
+        className={`text-xs mt-2 ${
+          isRecommendedTime ? 'text-orange-600' : 'text-blue-600'
+        }`}
+      >
         Request ID: {requestId.toString()}
+        {!isRecommendedTime && (
+          <div className="mt-1 text-gray-500">
+            💡 Manual processing ensures your deposit is never stuck
+          </div>
+        )}
       </div>
     </div>
   );
