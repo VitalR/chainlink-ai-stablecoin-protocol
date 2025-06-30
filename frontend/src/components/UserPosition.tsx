@@ -77,7 +77,7 @@ export function UserPosition() {
 
   const totalPositionCount = positionCount ? Number(positionCount) : 0;
 
-  // Fixed set of position hooks (0-19) - conditionally enabled based on totalPositionCount
+  // Fixed set of position hooks (0-29) - conditionally enabled based on totalPositionCount
   const { data: position0 } = useReadContract({
     address: isVaultAvailable
       ? (contracts as { COLLATERAL_VAULT: `0x${string}` }).COLLATERAL_VAULT
@@ -318,20 +318,128 @@ export function UserPosition() {
     },
   });
 
-  // Collect all valid positions dynamically
+  const { data: position20 } = useReadContract({
+    address: isVaultAvailable
+      ? (contracts as { COLLATERAL_VAULT: `0x${string}` }).COLLATERAL_VAULT
+      : undefined,
+    abi: COLLATERAL_VAULT_ABI,
+    functionName: 'getUserDepositInfo',
+    args: [address || '0x', BigInt(20)],
+    query: {
+      enabled: !!address && !!isVaultAvailable && 20 < totalPositionCount,
+    },
+  });
+
+  const { data: position21 } = useReadContract({
+    address: isVaultAvailable
+      ? (contracts as { COLLATERAL_VAULT: `0x${string}` }).COLLATERAL_VAULT
+      : undefined,
+    abi: COLLATERAL_VAULT_ABI,
+    functionName: 'getUserDepositInfo',
+    args: [address || '0x', BigInt(21)],
+    query: {
+      enabled: !!address && !!isVaultAvailable && 21 < totalPositionCount,
+    },
+  });
+
+  const { data: position22 } = useReadContract({
+    address: isVaultAvailable
+      ? (contracts as { COLLATERAL_VAULT: `0x${string}` }).COLLATERAL_VAULT
+      : undefined,
+    abi: COLLATERAL_VAULT_ABI,
+    functionName: 'getUserDepositInfo',
+    args: [address || '0x', BigInt(22)],
+    query: {
+      enabled: !!address && !!isVaultAvailable && 22 < totalPositionCount,
+    },
+  });
+
+  const { data: position23 } = useReadContract({
+    address: isVaultAvailable
+      ? (contracts as { COLLATERAL_VAULT: `0x${string}` }).COLLATERAL_VAULT
+      : undefined,
+    abi: COLLATERAL_VAULT_ABI,
+    functionName: 'getUserDepositInfo',
+    args: [address || '0x', BigInt(23)],
+    query: {
+      enabled: !!address && !!isVaultAvailable && 23 < totalPositionCount,
+    },
+  });
+
+  const { data: position24 } = useReadContract({
+    address: isVaultAvailable
+      ? (contracts as { COLLATERAL_VAULT: `0x${string}` }).COLLATERAL_VAULT
+      : undefined,
+    abi: COLLATERAL_VAULT_ABI,
+    functionName: 'getUserDepositInfo',
+    args: [address || '0x', BigInt(24)],
+    query: {
+      enabled: !!address && !!isVaultAvailable && 24 < totalPositionCount,
+    },
+  });
+
+  const { data: position25 } = useReadContract({
+    address: isVaultAvailable
+      ? (contracts as { COLLATERAL_VAULT: `0x${string}` }).COLLATERAL_VAULT
+      : undefined,
+    abi: COLLATERAL_VAULT_ABI,
+    functionName: 'getUserDepositInfo',
+    args: [address || '0x', BigInt(25)],
+    query: {
+      enabled: !!address && !!isVaultAvailable && 25 < totalPositionCount,
+    },
+  });
+
+  const { data: position26 } = useReadContract({
+    address: isVaultAvailable
+      ? (contracts as { COLLATERAL_VAULT: `0x${string}` }).COLLATERAL_VAULT
+      : undefined,
+    abi: COLLATERAL_VAULT_ABI,
+    functionName: 'getUserDepositInfo',
+    args: [address || '0x', BigInt(26)],
+    query: {
+      enabled: !!address && !!isVaultAvailable && 26 < totalPositionCount,
+    },
+  });
+
+  const { data: position27 } = useReadContract({
+    address: isVaultAvailable
+      ? (contracts as { COLLATERAL_VAULT: `0x${string}` }).COLLATERAL_VAULT
+      : undefined,
+    abi: COLLATERAL_VAULT_ABI,
+    functionName: 'getUserDepositInfo',
+    args: [address || '0x', BigInt(27)],
+    query: {
+      enabled: !!address && !!isVaultAvailable && 27 < totalPositionCount,
+    },
+  });
+
+  const { data: position28 } = useReadContract({
+    address: isVaultAvailable
+      ? (contracts as { COLLATERAL_VAULT: `0x${string}` }).COLLATERAL_VAULT
+      : undefined,
+    abi: COLLATERAL_VAULT_ABI,
+    functionName: 'getUserDepositInfo',
+    args: [address || '0x', BigInt(28)],
+    query: {
+      enabled: !!address && !!isVaultAvailable && 28 < totalPositionCount,
+    },
+  });
+
+  const { data: position29 } = useReadContract({
+    address: isVaultAvailable
+      ? (contracts as { COLLATERAL_VAULT: `0x${string}` }).COLLATERAL_VAULT
+      : undefined,
+    abi: COLLATERAL_VAULT_ABI,
+    functionName: 'getUserDepositInfo',
+    args: [address || '0x', BigInt(29)],
+    query: {
+      enabled: !!address && !!isVaultAvailable && 29 < totalPositionCount,
+    },
+  });
+
+  // Collect all valid positions from the 30 static hooks we have (0-29)
   const userPositions = useMemo(() => {
-    const positions: Array<{
-      totalValueUSD: bigint;
-      aiusdMinted: bigint;
-      collateralRatio: bigint;
-      hasPendingRequest: boolean;
-      requestId: bigint;
-      timestamp: bigint;
-      index: number;
-      tokens: readonly `0x${string}`[];
-      amounts: readonly bigint[];
-      arrayIndex: number;
-    }> = [];
     const allPositionData = [
       position0,
       position1,
@@ -353,13 +461,43 @@ export function UserPosition() {
       position17,
       position18,
       position19,
+      position20,
+      position21,
+      position22,
+      position23,
+      position24,
+      position25,
+      position26,
+      position27,
+      position28,
+      position29,
     ];
+
+    const positions: Array<{
+      totalValueUSD: bigint;
+      aiusdMinted: bigint;
+      collateralRatio: bigint;
+      hasPendingRequest: boolean;
+      requestId: bigint;
+      timestamp: bigint;
+      index: number;
+      tokens: readonly `0x${string}`[];
+      amounts: readonly bigint[];
+      arrayIndex: number;
+    }> = [];
 
     console.log(`=== DYNAMIC POSITION DISCOVERY ===`);
     console.log(`Total position count from contract: ${totalPositionCount}`);
     console.log(
-      `Checking positions 0 to ${Math.min(totalPositionCount - 1, 19)}:`
+      `Checking positions 0 to ${Math.min(totalPositionCount - 1, 29)}:`
     );
+
+    // Warn if user has more positions than we can handle with static hooks
+    if (totalPositionCount > 30) {
+      console.warn(
+        `⚠️ User has ${totalPositionCount} positions but we only check the first 30. Consider expanding position hooks or implementing batch fetching.`
+      );
+    }
 
     for (let i = 0; i < totalPositionCount && i < allPositionData.length; i++) {
       const positionData = allPositionData[i];
@@ -370,7 +508,9 @@ export function UserPosition() {
         (positionData.totalValueUSD > 0 || positionData.tokens?.length > 0)
       ) {
         console.log(
-          `✅ Position ${i}: AIUSD: ${formatTokenAmount(
+          `✅ Position ${i}: Contract Index: ${
+            positionData.index
+          }, AIUSD: ${formatTokenAmount(
             positionData.aiusdMinted,
             18,
             4
@@ -391,6 +531,13 @@ export function UserPosition() {
     console.log(
       `Found ${positions.length} active positions out of ${totalPositionCount} total`
     );
+    if (totalPositionCount > 30) {
+      console.log(
+        `📝 Note: Only checked first 30 positions. ${
+          totalPositionCount - 30
+        } positions not checked.`
+      );
+    }
     console.log(`=== END DYNAMIC DISCOVERY ===`);
 
     return positions;
@@ -416,30 +563,20 @@ export function UserPosition() {
     position17,
     position18,
     position19,
+    position20,
+    position21,
+    position22,
+    position23,
+    position24,
+    position25,
+    position26,
+    position27,
+    position28,
+    position29,
   ]);
 
   // Get the current selected position
   const currentPosition = userPositions[selectedPositionIndex];
-
-  // Get specific position data using getUserDepositInfo for the selected position
-  const {
-    data: userDepositInfo,
-    isLoading: isLoadingPosition,
-    refetch: refetchPosition,
-    error: userDepositError,
-  } = useReadContract({
-    address: isVaultAvailable
-      ? (contracts as { COLLATERAL_VAULT: `0x${string}` }).COLLATERAL_VAULT
-      : undefined,
-    abi: COLLATERAL_VAULT_ABI,
-    functionName: 'getUserDepositInfo',
-    args: currentPosition
-      ? [address || '0x', BigInt(currentPosition.index)]
-      : undefined,
-    query: {
-      enabled: !!address && !!isVaultAvailable && !!currentPosition,
-    },
-  });
 
   // Get position summary for the user
   const {
@@ -468,7 +605,7 @@ export function UserPosition() {
     query: { enabled: !!address },
   });
 
-  const isLoading = isLoadingCount || isLoadingPosition;
+  const isLoading = isLoadingCount;
 
   // Calculate average collateral ratio from individual positions
   const calculateAverageRatio = useMemo(() => {
@@ -503,11 +640,17 @@ export function UserPosition() {
       );
       console.log('Position Count from Contract:', totalPositionCount);
       console.log('User Positions Length:', userPositions.length);
-      console.log('Selected Position Index:', selectedPositionIndex);
+      console.log('Selected Position Index (UI):', selectedPositionIndex);
       console.log(
         'Current Position:',
-        currentPosition ? `Index ${currentPosition.index}` : 'None'
+        currentPosition
+          ? `Contract Index ${currentPosition.index} (UI Index ${selectedPositionIndex})`
+          : 'None'
       );
+      console.log('Position Index Mapping:');
+      userPositions.forEach((pos, uiIndex) => {
+        console.log(`  UI Index ${uiIndex} → Contract Index ${pos.index}`);
+      });
       console.log(
         'Average Collateral Ratio:',
         formatCollateralRatio(calculateAverageRatio)
@@ -520,7 +663,7 @@ export function UserPosition() {
       console.log(`- totalPositionCount: ${totalPositionCount}`);
       console.log(`- isVaultAvailable: ${isVaultAvailable}`);
       console.log(`- address: ${!!address}`);
-      for (let i = 0; i < Math.min(5, 20); i++) {
+      for (let i = 0; i < Math.min(5, 50); i++) {
         const enabled =
           !!address && !!isVaultAvailable && i < totalPositionCount;
         console.log(
@@ -530,124 +673,11 @@ export function UserPosition() {
 
       // Enhanced position summary logging
       if (positionSummary) {
-        console.log('✅ Position Summary (WORKING):', {
+        console.log('Position Summary Data:', {
           totalPositions: positionSummary[0].toString(),
           activePositions: positionSummary[1].toString(),
           totalValueUSD: formatTokenAmount(positionSummary[2], 18, 4),
           totalAIUSDMinted: formatTokenAmount(positionSummary[3], 18, 4),
-        });
-
-        // If summary shows positions but we can't find individual ones
-        if (Number(positionSummary[1]) > 0 && userPositions.length === 0) {
-          console.warn('🚨 POSITION DISCOVERY ISSUE:');
-          console.warn(
-            '- Summary shows active positions but individual position discovery failed'
-          );
-          console.warn(
-            `- Contract reports ${totalPositionCount} positions but none loaded successfully`
-          );
-          console.warn(
-            '- This could be a data loading issue or network problem'
-          );
-        }
-      } else {
-        console.log('❌ Position Summary: Not loaded');
-      }
-
-      // Dynamic position discovery results
-      console.log('🔍 Dynamic Position Discovery Results:');
-      console.log(`- Total positions from contract: ${totalPositionCount}`);
-      console.log(`- Position hooks created: 20 (positions 0-19)`);
-      console.log(`- Successfully loaded positions: ${userPositions.length}`);
-
-      // Show individual position data for debugging
-      const allPositionData = [
-        position0,
-        position1,
-        position2,
-        position3,
-        position4,
-        position5,
-        position6,
-        position7,
-        position8,
-        position9,
-        position10,
-        position11,
-        position12,
-        position13,
-        position14,
-        position15,
-        position16,
-        position17,
-        position18,
-        position19,
-      ];
-
-      for (
-        let i = 0;
-        i < totalPositionCount && i < allPositionData.length;
-        i++
-      ) {
-        const hookData = allPositionData[i];
-        if (
-          hookData &&
-          (hookData.totalValueUSD > 0 || hookData.tokens?.length > 0)
-        ) {
-          console.log(
-            `  Position ${i}: ✅ AIUSD: ${formatTokenAmount(
-              hookData.aiusdMinted,
-              18,
-              4
-            )}, Value: ${formatTokenAmount(
-              hookData.totalValueUSD,
-              18,
-              4
-            )}, Tokens: ${hookData.tokens?.length || 0}`
-          );
-        } else if (hookData) {
-          console.log(`  Position ${i}: ⚪ Empty (no collateral)`);
-        } else {
-          console.log(`  Position ${i}: ❌ Not loaded yet`);
-        }
-      }
-
-      if (userDepositError) {
-        console.error('Position Error:', userDepositError);
-      }
-
-      if (summaryError) {
-        console.error('Summary Error:', summaryError);
-      }
-
-      if (userDepositInfo) {
-        console.log('Selected Position Data:', {
-          totalValueUSD: formatTokenAmount(
-            userDepositInfo.totalValueUSD,
-            18,
-            4
-          ),
-          aiusdMinted: formatTokenAmount(userDepositInfo.aiusdMinted, 18, 4),
-          collateralRatio:
-            (Number(userDepositInfo.collateralRatio) / 10000).toFixed(2) + '%',
-          hasPendingRequest: userDepositInfo.hasPendingRequest,
-          timestamp: new Date(
-            Number(userDepositInfo.timestamp) * 1000
-          ).toISOString(),
-          index: userDepositInfo.index,
-          tokensCount: userDepositInfo.tokens.length,
-          tokenDetails: userDepositInfo.tokens.map((tokenAddr, i) => {
-            const tokenInfo = getTokenInfo(tokenAddr);
-            return {
-              symbol: tokenInfo.symbol,
-              amount: formatTokenAmount(
-                userDepositInfo.amounts[i],
-                tokenInfo.decimals,
-                4
-              ),
-              decimals: tokenInfo.decimals,
-            };
-          }),
         });
       }
 
@@ -664,9 +694,7 @@ export function UserPosition() {
     totalPositionCount,
     userPositions,
     positionSummary,
-    userDepositInfo,
     aiusdBalance,
-    userDepositError,
     summaryError,
     isVaultAvailable,
     calculateAverageRatio,
@@ -674,26 +702,6 @@ export function UserPosition() {
     currentPosition,
     isLoadingCount,
     positionCount,
-    position0,
-    position1,
-    position2,
-    position3,
-    position4,
-    position5,
-    position6,
-    position7,
-    position8,
-    position9,
-    position10,
-    position11,
-    position12,
-    position13,
-    position14,
-    position15,
-    position16,
-    position17,
-    position18,
-    position19,
   ]);
 
   // Function to refresh all data
@@ -701,7 +709,6 @@ export function UserPosition() {
     if (isVaultAvailable) {
       await Promise.all([
         refetchCount(),
-        refetchPosition(),
         refetchBalance(),
         refetchPositionSummary(),
       ]);
@@ -723,14 +730,27 @@ export function UserPosition() {
     switchChain({ chainId: 11155111 }); // Sepolia
   };
 
-  // Robust loading guard: wait for all critical data before rendering
+  // Improved loading guard: wait for all critical data before making decisions
   const isFullyLoading =
     isLoadingCount ||
     typeof positionCount === 'undefined' ||
     typeof positionSummary === 'undefined' ||
     typeof aiusdBalance === 'undefined';
 
-  if (isFullyLoading) {
+  // Add a flag to track if we're still in the initial loading phase
+  const isInitialPositionLoading = useMemo(() => {
+    if (!positionSummary || isFullyLoading) return true;
+
+    // If summary shows positions but we haven't had enough time to load individual positions
+    const hasPositionsInSummary =
+      positionSummary && Number(positionSummary[1]) > 0;
+    const hasLoadedIndividualPositions = userPositions.length > 0;
+
+    // Give it time to load individual positions before showing debug screen
+    return hasPositionsInSummary && !hasLoadedIndividualPositions;
+  }, [positionSummary, userPositions.length, isFullyLoading]);
+
+  if (isFullyLoading || isInitialPositionLoading) {
     return (
       <div className="animate-pulse space-y-4">
         <div className="h-4 bg-gray-200 rounded w-3/4"></div>
@@ -804,15 +824,20 @@ export function UserPosition() {
   const hasPositions = positionSummary && Number(positionSummary[1]) > 0; // activePositions
   // const hasMintedAIUSD = positionSummary && Number(positionSummary[3]) > 0; // totalAIUSDMinted (unused)
 
-  // SPECIAL CASE: Position summary shows positions but discovery failed
-  if (hasPositions && userPositions.length === 0) {
+  // MODIFIED: Only show debug screen in development or after significant delay with persistent error
+  // This prevents the debug screen from flashing during normal loading transitions
+  if (
+    hasPositions &&
+    userPositions.length === 0 &&
+    process.env.NODE_ENV === 'development'
+  ) {
     return (
       <div className="text-center py-8">
         <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <span className="text-2xl">🔍</span>
         </div>
         <h4 className="text-lg font-medium text-yellow-900 mb-2">
-          Position Discovery Issue
+          Position Discovery Issue (Dev Mode)
         </h4>
         <p className="text-yellow-700 mb-4">
           Found position data in summary but can&apos;t locate individual
@@ -900,9 +925,9 @@ export function UserPosition() {
 
         <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
           <p className="text-sm text-blue-700">
-            💡 <strong>Temporary workaround:</strong> Your positions exist
-            (summary shows data), but they&apos;re at different indices than
-            we&apos;re checking. Check browser console for debug info.
+            💡 <strong>Development Note:</strong> Your positions exist (summary
+            shows data), but they&apos;re at different indices than we&apos;re
+            checking. Check browser console for debug info.
           </p>
         </div>
       </div>
@@ -978,7 +1003,7 @@ export function UserPosition() {
   }
 
   // If error loading data
-  if (!positionSummary && (userDepositError || summaryError)) {
+  if (!positionSummary && summaryError) {
     return (
       <div className="text-center py-8">
         <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -990,14 +1015,9 @@ export function UserPosition() {
         <p className="text-red-600 text-sm mb-4">
           Failed to load position data. This could be a temporary network issue.
         </p>
-        {userDepositError && (
-          <div className="text-xs text-red-500 mb-2 font-mono">
-            Position Error: {userDepositError.message}
-          </div>
-        )}
         {summaryError && (
           <div className="text-xs text-red-500 mb-2 font-mono">
-            Summary Error: {summaryError.message}
+            Summary Error: {String(summaryError)}
           </div>
         )}
         <div className="space-y-2">
@@ -1030,6 +1050,23 @@ export function UserPosition() {
   // Main UI when user has positions
   return (
     <div className="space-y-6">
+      {/* Warning if user has more positions than we can display */}
+      {totalPositionCount > 30 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+          <div className="flex items-center space-x-2 mb-2">
+            <span className="text-amber-600">⚠️</span>
+            <span className="font-medium text-amber-800">
+              Position Limit Notice
+            </span>
+          </div>
+          <p className="text-sm text-amber-700">
+            You have {totalPositionCount} positions, but we can only display the
+            first 30. The remaining {totalPositionCount - 30} positions are not
+            shown in this interface.
+          </p>
+        </div>
+      )}
+
       {/* Position Selector */}
       {userPositions.length > 1 && (
         <div className="border rounded-lg p-4 bg-gradient-to-r from-gray-50 to-blue-50">
@@ -1044,7 +1081,7 @@ export function UserPosition() {
             >
               {userPositions.map((position, i) => (
                 <option key={i} value={i}>
-                  Position #{position.index} (Blockchain)
+                  Contract Position #{position.index} (UI: {i + 1})
                 </option>
               ))}
             </select>
@@ -1061,11 +1098,11 @@ export function UserPosition() {
         <div className="flex justify-between items-center mb-2">
           <h4 className="font-medium text-gray-900">
             {userPositions.length > 0 && currentPosition
-              ? `Position #${currentPosition.index} (Blockchain)${
+              ? `Contract Position #${currentPosition.index}${
                   userPositions.length > 1
-                    ? ` - ${selectedPositionIndex + 1} of ${
+                    ? ` (${selectedPositionIndex + 1} of ${
                         userPositions.length
-                      }`
+                      })`
                     : ''
                 }`
               : 'Position Summary'}
@@ -1083,11 +1120,13 @@ export function UserPosition() {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <div className="text-sm text-gray-600">
-              {currentPosition ? 'Position Value' : 'Total Collateral'}
+              {userPositions.length > 0 && currentPosition
+                ? 'Position Value'
+                : 'Total Collateral'}
             </div>
             <div className="text-2xl font-bold text-gray-900">
               $
-              {currentPosition
+              {userPositions.length > 0 && currentPosition
                 ? formatTokenAmount(currentPosition.totalValueUSD, 18, 2)
                 : positionSummary
                 ? formatTokenAmount(positionSummary[2], 18, 2)
@@ -1096,10 +1135,12 @@ export function UserPosition() {
           </div>
           <div>
             <div className="text-sm text-gray-600">
-              {currentPosition ? 'AIUSD from Position' : 'Total AIUSD Minted'}
+              {userPositions.length > 0 && currentPosition
+                ? 'AIUSD from Position'
+                : 'Total AIUSD Minted'}
             </div>
             <div className="text-2xl font-bold text-blue-600">
-              {currentPosition
+              {userPositions.length > 0 && currentPosition
                 ? formatTokenAmount(currentPosition.aiusdMinted, 18, 4)
                 : positionSummary
                 ? formatTokenAmount(positionSummary[3], 18, 4)
@@ -1219,11 +1260,11 @@ export function UserPosition() {
               })()}
             </p>
             <span className="text-xs text-gray-500">
-              {currentPosition &&
-              Number(currentPosition.collateralRatio) / 10000 <= 1.35
+              {userPositions.length > 0 &&
+              Number(userPositions[0].collateralRatio) / 10000 <= 1.35
                 ? '🎯 Excellent diversification'
-                : currentPosition &&
-                  Number(currentPosition.collateralRatio) / 10000 <= 1.6
+                : userPositions.length > 0 &&
+                  Number(userPositions[0].collateralRatio) / 10000 <= 1.6
                 ? '⚡ Good efficiency'
                 : '⚠️ Consider diversifying'}
             </span>
@@ -1232,7 +1273,7 @@ export function UserPosition() {
       )}
 
       {/* Collateral Details */}
-      {currentPosition && (
+      {userPositions.length > 0 && currentPosition && (
         <div className="border rounded-lg p-4">
           <h5 className="font-medium text-gray-900 mb-3">
             🪙 Collateral Composition
@@ -1266,7 +1307,7 @@ export function UserPosition() {
       <div className="flex space-x-3">
         <button
           onClick={() => setShowWithdraw(!showWithdraw)}
-          className="flex-1 bg-red-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-red-700 transition-colors"
+          className="flex-1 bg-orange-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-orange-700 transition-colors"
         >
           {showWithdraw ? 'Hide' : 'Withdraw'} Collateral
         </button>
@@ -1280,15 +1321,25 @@ export function UserPosition() {
 
       {/* Withdraw Form */}
       {showWithdraw && currentPosition && (
-        <WithdrawForm
-          positionIndex={currentPosition.index}
-          aiusdMinted={currentPosition.aiusdMinted}
-          aiusdBalance={aiusdBalance || BigInt(0)}
-          onSuccess={() => {
-            setShowWithdraw(false);
-            refreshData();
-          }}
-        />
+        <div className="space-y-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <p className="text-sm text-blue-700">
+              <strong>Withdrawing from:</strong> Contract Position #
+              {currentPosition.index}
+              {userPositions.length > 1 &&
+                ` (${selectedPositionIndex + 1} of ${userPositions.length})`}
+            </p>
+          </div>
+          <WithdrawForm
+            positionIndex={currentPosition.index}
+            aiusdMinted={currentPosition.aiusdMinted}
+            aiusdBalance={aiusdBalance || BigInt(0)}
+            onSuccess={() => {
+              setShowWithdraw(false);
+              refreshData();
+            }}
+          />
+        </div>
       )}
     </div>
   );

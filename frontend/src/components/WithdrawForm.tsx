@@ -76,15 +76,21 @@ export function WithdrawForm({
   // Handle transaction confirmation with useEffect to avoid hoisting issues
   useEffect(() => {
     if (isConfirmed && transactionStep !== 'idle') {
-      console.log('Transaction confirmed, resetting state...');
+      console.log('Transaction confirmed, step:', transactionStep);
+
       if (transactionStep === 'approving') {
         console.log('Approval confirmed, refetching allowance...');
         refetchAllowance(); // Safe to use here since it's defined above
+        // Don't call onSuccess() for approval - keep the form open
+        setTransactionStep('idle'); // Reset transaction step but keep form open
+      } else if (transactionStep === 'withdrawing') {
+        console.log('Withdrawal confirmed, closing form...');
+        // Only call onSuccess() when withdrawal is complete
+        setTransactionStep('idle');
+        setWithdrawAmount('');
+        setMaxAmount(null);
+        onSuccess?.();
       }
-      setTransactionStep('idle');
-      setWithdrawAmount('');
-      setMaxAmount(null);
-      onSuccess?.();
     }
   }, [isConfirmed, transactionStep, refetchAllowance, onSuccess]);
 
