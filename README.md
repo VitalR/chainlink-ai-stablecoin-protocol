@@ -1,37 +1,63 @@
-# AI Stablecoin System
+# AI-Powered Stablecoin Protocol with Chainlink + Amazon Bedrock
 
-An AI-driven stablecoin protocol that integrates with ORA's on-chain AI Oracle to dynamically determine optimal collateral ratios for minting stablecoins.
+## 🏆 Built for Chromion Chainlink Hackathon 2025
 
-## 🚀 Overview
+_Showcasing innovation in AI-powered DeFi across multiple technical categories_
 
-The AI Stablecoin system uses artificial intelligence to analyze collateral baskets and determine optimal minting ratios, providing:
+### **Technical Innovation Areas:**
 
-- **Dynamic Risk Assessment**: AI analyzes collateral composition, volatility, correlation, and market conditions
-- **Optimal Capital Efficiency**: Maximizes borrowing power while maintaining safety
-- **Robust Recovery Mechanisms**: Multiple fallback systems ensure funds are never permanently stuck
-- **Community-Driven Support**: Permissionless manual processing when automated systems fail
+- **🤖 AI Integration** - Amazon Bedrock + Chainlink Functions hybrid architecture
+- **🏦 DeFi Innovation** - Dynamic risk-based collateral ratios for capital efficiency
+- **🔗 Cross-Platform** - Multiple Chainlink services integration (Functions + Data Feeds)
 
-## 📋 System Architecture
+### **🚀 Technical Achievement Goals:**
+
+✅ **First DeFi protocol** with Amazon Bedrock integration  
+✅ **Hybrid AI architecture** combining enterprise AI + algorithmic intelligence  
+✅ **Decentralized AI execution** via Chainlink's oracle network  
+✅ **Dynamic financial parameters** that reward smart portfolio management
+
+### **🤖 Revolutionary AI Architecture:**
+
+✅ **Amazon Bedrock** (Claude 3 Sonnet or equivalent) for enterprise-grade risk analysis  
+✅ **Sophisticated algorithmic AI** fallback for reliability  
+✅ **Chainlink Functions** for decentralized AI execution  
+✅ **Chainlink Data Feeds** for real-time price data
+
+---
+
+## Overview
+
+An innovative stablecoin protocol that uses **hybrid AI** (Amazon Bedrock + algorithmic intelligence) to dynamically assess portfolio risk and determine optimal collateral ratios in real-time.
+
+## 🚀 System Architecture
 
 ### Core Components
 
 1. **AIStablecoin (AIUSD)** - The stablecoin token with vault-based minting
-2. **AICollateralVaultCallbackImproved** - Manages collateral deposits and positions
-3. **AIControllerCallbackImproved** - Handles ORA integration and manual processing
-4. **MockAIOracleImproved** - Testing oracle that simulates ORA behavior
+2. **CollateralVault** - Manages collateral deposits and positions
+3. **RiskOracleController** - Handles Chainlink Functions integration and manual processing
+4. **AIStablecoinCCIPBridge** - Cross-chain bridge for AIUSD transfers via Chainlink CCIP
 
-### Improved Callback System Features
+### Hybrid AI System Features
 
-#### ✅ **Enhanced ORA Integration**
+#### ✅ **Amazon Bedrock Integration**
 
-- **Dynamic Gas Management**: 200k-1M gas limits based on complexity
-- **Circuit Breaker**: Auto-pause after 5 failures, manual override available
-- **Hash-Based Verification**: O(1) lookup prevents replay attacks
-- **Safe External Calls**: Vault failures don't break callbacks
+- **Primary AI**: Claude 3 Sonnet (or available Bedrock model) for sophisticated portfolio analysis
+- **Enterprise-grade**: AWS's managed AI service for reliability
+- **Dynamic risk assessment**: Real-time portfolio composition analysis
+- **Market sentiment integration**: Advanced sentiment analysis capabilities
+
+#### ✅ **Algorithmic AI Fallback**
+
+- **Sophisticated multi-factor analysis**: Portfolio diversification, token volatility, liquidity scoring
+- **Dynamic parameter adjustment**: Position size analysis, market conditions
+- **Intelligent decision making**: 125-200% collateral ratios based on risk
+- **High reliability**: Always available when Bedrock is unavailable
 
 #### ✅ **Manual Processing System**
 
-When ORA callbacks fail or get stuck, the system provides multiple recovery strategies:
+When AI systems are unavailable, the system provides multiple recovery strategies:
 
 **Strategy 1: Process with Off-Chain AI** (Available after 30 minutes)
 
@@ -47,25 +73,42 @@ When ORA callbacks fail or get stuck, the system provides multiple recovery stra
 
 **Strategy 3: Force Default Mint** (Available after 30 minutes)
 
-- Conservative 160% collateral ratio
+- Conservative 150% collateral ratio
 - 50% confidence score
 - Quick resolution without AI analysis
 
 #### ✅ **Time-Based Recovery Timeline**
 
 ```
-0-30 min:  Wait for normal ORA callback
+0-30 min:  Wait for normal Chainlink Functions callback
 30 min+:   Manual processing available (Strategies 1 & 3)
 2 hours+:  Emergency withdrawal available (Strategy 2)
 4 hours+:  Direct vault withdrawal available
 ```
 
-#### ✅ **Security & Authorization**
+### 🌉 Cross-Chain Bridge Integration
 
-- **Authorized Processors**: Owner can authorize community helpers
-- **Permissionless Operation**: Anyone can process after time delays
-- **Request Verification**: Hash-based validation prevents manipulation
-- **Circuit Breaker**: System-wide pause/resume controls
+#### ✅ **Chainlink CCIP Bridge**
+
+- **Networks**: Ethereum Sepolia ↔ Avalanche Fuji
+- **Mechanism**: Secure burn-and-mint cross-chain transfers
+- **Fee Options**: Pay with native tokens (ETH/AVAX) or LINK
+- **Security**: Trusted remotes with vault authorization
+- **Architecture**: External bridge pattern (no existing contract modifications)
+
+#### ✅ **Bridge Features**
+
+- **Bidirectional**: Bridge AIUSD between Sepolia and Fuji
+- **Secure**: Burn-and-mint mechanism prevents double-spending
+- **Flexible Fees**: Choose between native token or LINK payment
+- **Production Ready**: Verified cross-chain transactions with CCIP Explorer tracking
+
+#### ✅ **Cross-Chain Value Proposition**
+
+- **AI Analysis on Sepolia**: Sophisticated risk assessment using Chainlink Functions + Bedrock
+- **DeFi Access on Avalanche**: Lower fees and faster transactions for DeFi activities
+- **Liquidity Bridge**: Move AIUSD to where it's needed most
+- **Hackathon Alignment**: Avalanche integration as requested by Chromion hackathon
 
 ## 🛠 Usage
 
@@ -81,13 +124,13 @@ IERC20(wethAddress).approve(vaultAddress, amount);
 address[] memory tokens = [wethAddress, usdcAddress];
 uint256[] memory amounts = [10 ether, 5000 * 1e6];
 
-vault.depositBasket{value: oracleFee}(tokens, amounts);
+vault.depositBasket(tokens, amounts);
 ```
 
-#### 2. Normal Flow (AI Callback Works)
+#### 2. Normal Flow (AI Works)
 
-- AI analyzes your collateral within ~5 minutes
-- Optimal ratio determined (e.g., 135% = aggressive, 165% = conservative)
+- **Amazon Bedrock** or **Algorithmic AI** analyzes your collateral within ~1-5 minutes
+- Optimal ratio determined (e.g., 135% = diversified, 175% = concentrated)
 - AIUSD automatically minted to your address
 
 #### 3. If AI Gets Stuck (Manual Processing)
@@ -98,9 +141,6 @@ controller.requestManualProcessing(requestId);
 
 // Or after 2 hours, emergency withdraw
 controller.emergencyWithdraw(requestId);
-
-// Or after 4 hours, direct vault withdrawal
-vault.userEmergencyWithdraw();
 ```
 
 ### For Manual Processors
@@ -120,30 +160,12 @@ vault.userEmergencyWithdraw();
 
 ```solidity
 // Use ChatGPT, Claude, or any AI service to analyze the collateral
-string memory aiResponse = "RATIO:145 CONFIDENCE:85";
+string memory aiResponse = "RATIO:145 CONFIDENCE:85 SOURCE:EXTERNAL_AI";
 
 controller.processWithOffChainAI(
     requestId,
     aiResponse,
     ManualStrategy.PROCESS_WITH_OFFCHAIN_AI
-);
-```
-
-#### 3. Alternative Strategies
-
-```solidity
-// Force conservative mint
-controller.processWithOffChainAI(
-    requestId,
-    "",
-    ManualStrategy.FORCE_DEFAULT_MINT
-);
-
-// Trigger emergency withdrawal
-controller.processWithOffChainAI(
-    requestId,
-    "",
-    ManualStrategy.EMERGENCY_WITHDRAWAL
 );
 ```
 
@@ -163,16 +185,6 @@ controller.pauseProcessing();
 
 // Resume operations
 controller.resumeProcessing();
-
-// Reset failure count
-controller.resetFailureCount();
-```
-
-#### 3. Monitor System Health
-
-```solidity
-(bool paused, uint256 failures, uint256 lastFailure, uint256 totalProcessed) =
-    controller.getSystemStatus();
 ```
 
 ## 🧪 Testing
@@ -183,8 +195,11 @@ controller.resetFailureCount();
 # Build contracts
 forge build
 
-# Run improved callback system tests
-./test/run_improved_tests.sh
+# Run Chainlink Functions integration tests
+./test/utils/run_improved_tests.sh
+
+# Run E2E workflow tests
+./test/utils/run_tests.sh
 
 # Run all tests
 forge test
@@ -192,63 +207,48 @@ forge test
 
 ### Test Coverage
 
-The test suite covers:
-
-- ✅ Normal ORA callback flow
-- ✅ Manual processing request
-- ✅ Off-chain AI processing
-- ✅ Force default mint
-- ✅ Emergency withdrawal (processor)
-- ✅ Emergency withdrawal (user)
-- ✅ Emergency withdrawal (vault)
-- ✅ Manual processing candidates
-- ✅ Manual processing options
-- ✅ Unauthorized access protection
-- ✅ Circuit breaker functionality
-- ✅ AI response parsing
+- ✅ **Amazon Bedrock integration** via Chainlink Functions
+- ✅ **Algorithmic AI fallback** processing and failure handling
+- ✅ **Manual processing workflows** after timeout
+- ✅ **Emergency withdrawal** functionality
+- ✅ **Circuit breaker** functionality
+- ✅ **Authorization and security** controls
+- ✅ **Complete deposit and withdrawal** flows
 
 ## 🚀 Deployment
 
 ### Prerequisites
 
-1. Deploy ORA Oracle contracts
-2. Set up AI model on ORA (model ID 11 recommended)
-3. Fund deployer with ETH for gas
+1. **AWS Setup**: Amazon Bedrock access with Claude 3 Sonnet enabled
+2. **Chainlink Setup**: Functions subscription with LINK tokens
+3. **Network Setup**: Deploy to Sepolia testnet or Ethereum mainnet
 
 ### Deploy Script
 
 ```bash
-forge script script/DeployCallbackSystem.s.sol \
-    --rpc-url $RPC_URL \
-    --private-key $PRIVATE_KEY \
-    --broadcast
+source .env && forge script script/deploy/02_DeployRiskOracleController.s.sol:DeployRiskOracleControllerScript --rpc-url $SEPOLIA_RPC_URL --broadcast --private-key $DEPLOYER_PRIVATE_KEY --etherscan-api-key $ETHERSCAN_API_KEY --verify -vvvv
 ```
 
 ### Post-Deployment Setup
 
-1. Add supported collateral tokens with prices
-2. Authorize initial manual processors
-3. Set appropriate oracle fees
-4. Test with small deposits first
+1. **Configure AWS credentials** in Chainlink Functions secrets
+2. **Add supported collateral tokens** with prices
+3. **Authorize initial manual processors**
+4. **Test with small deposits** first
 
 ## 🔧 Configuration
 
-### Gas Limits
+### AI Response Timeouts
 
-- **Normal Callback**: 200k gas (default)
-- **Complex Callback**: Up to 1M gas (dynamic)
-- **Emergency Operations**: 100k gas
-- **Manual Processing**: 300k gas
-
-### Time Delays
-
+- **Normal Processing**: 1-5 minutes (Chainlink Functions)
 - **Manual Processing**: 30 minutes
 - **Emergency Withdrawal**: 2 hours
 - **Direct Vault Withdrawal**: 4 hours
 
 ### Safety Parameters
 
-- **Default Conservative Ratio**: 160%
+- **Default Conservative Ratio**: 150%
+- **AI Ratio Range**: 125-200%
 - **Circuit Breaker Threshold**: 5 failures
 - **Auto-Reset Time**: 1 hour
 
@@ -256,7 +256,7 @@ forge script script/DeployCallbackSystem.s.sol \
 
 ### Multi-Layer Protection
 
-1. **Hash Verification**: Prevents request replay attacks
+1. **Hybrid AI Architecture**: Primary + fallback AI systems
 2. **Time-Based Permissions**: Graduated access to recovery functions
 3. **Authorization Controls**: Only approved processors can intervene
 4. **Circuit Breaker**: Automatic system pause on repeated failures
@@ -269,25 +269,23 @@ forge script script/DeployCallbackSystem.s.sol \
 3. **2 hours**: Emergency withdrawal available
 4. **4 hours**: Direct vault withdrawal available
 
-## 📊 Gas Analysis
+## 📊 AI Performance
 
-### Normal Operations
+### Response Sources
 
-- **Deposit + AI Request**: ~650k gas
-- **AI Callback Processing**: ~200k gas
-- **Total Normal Flow**: ~850k gas
+- **AMAZON_BEDROCK_AI**: Primary enterprise AI via Claude 3 Sonnet
+- **ALGORITHMIC_AI**: Sophisticated fallback analysis
+- **EXTERNAL_AI**: Manual processing with external services
+- **FALLBACK**: Conservative default (150% ratio)
 
-### Manual Processing
+### Example AI Analysis
 
-- **Off-chain AI Processing**: ~300k gas
-- **Force Default Mint**: ~250k gas
-- **Emergency Withdrawal**: ~100k gas
+**Traditional Stablecoin**: "Everyone needs 150% collateral"
 
-### Efficiency Gains
+**Our AI Stablecoin**:
 
-- **35-85% gas savings** compared to failed callback retries
-- **Batch processing** capabilities for multiple stuck requests
-- **Optimized storage** with hash-based lookups
+- **Portfolio A** (100% ETH): AI determines high risk → 175% collateral required
+- **Portfolio B** (diversified): AI determines low risk → 135% collateral required
 
 ## 🤝 Community Involvement
 
@@ -296,62 +294,100 @@ forge script script/DeployCallbackSystem.s.sol \
 1. **Get Authorized**: Contact system administrators
 2. **Monitor Requests**: Use `getManualProcessingCandidates()`
 3. **Help Users**: Process stuck requests with external AI
-4. **Earn Rewards**: Future versions may include processor incentives
+4. **Future Rewards**: Processor incentive system planned
 
 ### AI Integration Examples
 
 ```javascript
-// Example: Using OpenAI API
-const aiResponse = await openai.chat.completions.create({
+// Example 1: Using OpenAI API for manual processing
+const openaiResponse = await openai.chat.completions.create({
   model: 'gpt-4',
   messages: [
     {
       role: 'user',
-      content: `Analyze this DeFi collateral basket for optimal low ratio. 
-              Maximize capital efficiency while ensuring safety.
-              Consider volatility, correlation, liquidity.
-              Respond: RATIO:XXX CONFIDENCE:YY (130-170%, 0-100%).
-              Value: $${totalValue} Data: ${basketData}`,
+      content: `Analyze this DeFi collateral basket for optimal collateral ratio.
+             Consider: diversification, volatility, liquidity, position size.
+             Respond: RATIO:XXX CONFIDENCE:YY (125-200%, 30-95%).
+             Portfolio: ${basketData} Value: $${totalValue}`,
     },
   ],
 });
 
-// Parse and submit
-const ratio = parseRatio(aiResponse.choices[0].message.content);
-await controller.processWithOffChainAI(requestId, aiResponse, 0);
+// Example 2: Using Anthropic Claude API for manual processing
+const claudeResponse = await anthropic.messages.create({
+  model: 'claude-3-sonnet-20240229',
+  max_tokens: 1000,
+  messages: [
+    {
+      role: 'user',
+      content: `Analyze this DeFi collateral basket for optimal collateral ratio.
+             Consider: diversification, volatility, liquidity, position size.
+             Respond: RATIO:XXX CONFIDENCE:YY (125-200%, 30-95%).
+             Portfolio: ${basketData} Value: $${totalValue}`,
+    },
+  ],
+});
+
+// Parse and submit (works with any AI service)
+await controller.processWithOffChainAI(requestId, aiResponse.content, 0);
 ```
+
+**Note**: These examples are for **manual processing** by community processors. Our primary AI system uses **Amazon Bedrock (Claude 3 Sonnet)** via Chainlink Functions.
 
 ## 📚 Additional Resources
 
-- **ORA Protocol**: [https://ora.io](https://ora.io)
-- **Foundry Documentation**: [https://book.getfoundry.sh](https://book.getfoundry.sh)
-- **SimplePrompt Analysis**: See `SIMPLEPROMPT_MIGRATION_ANALYSIS.md`
+- **Amazon Bedrock**: [AWS Bedrock Documentation](https://docs.aws.amazon.com/bedrock/)
+- **Chainlink Functions**: [Chainlink Functions Documentation](https://docs.chain.link/chainlink-functions)
+- **Foundry Framework**: [Foundry Book](https://book.getfoundry.sh)
 
 ## 🐛 Troubleshooting
 
 ### Common Issues
 
-**Q: My AI request is stuck, what do I do?**
+**Q: My AI request is stuck, what do I do?**  
 A: Wait 30 minutes, then call `requestManualProcessing()`. Community processors will help.
 
-**Q: Can I lose my collateral?**
+**Q: Can I lose my collateral?**  
 A: No! Multiple recovery mechanisms ensure funds are never permanently stuck.
 
-**Q: How do I become a manual processor?**
-A: Contact the system administrator to get authorized, or wait for time delays to process permissionlessly.
+**Q: How does the hybrid AI work?**  
+A: Primary: Amazon Bedrock (Claude 3). Fallback: Sophisticated algorithmic AI. Always reliable.
 
-**Q: What if the circuit breaker is triggered?**
-A: The system pauses new requests but existing positions remain safe. Administrators can resume operations.
+**Q: What if Chainlink Functions fail?**  
+A: Manual processing system kicks in with external AI services and emergency withdrawals.
 
 ---
 
 ## 🎯 Key Benefits
 
-✅ **Never Lose Funds**: Multiple recovery mechanisms ensure collateral is always retrievable  
-✅ **Community Support**: Permissionless processing helps stuck users  
-✅ **AI Flexibility**: Use any AI service (ChatGPT, Claude, local models)  
-✅ **Gas Efficient**: 35-85% savings compared to failed callback retries  
-✅ **Battle Tested**: Comprehensive test suite with 12 passing test scenarios  
-✅ **Production Ready**: Robust error handling and security controls
+✅ **Enterprise AI**: Amazon Bedrock (Claude 3 Sonnet) for sophisticated analysis  
+✅ **Reliable Fallback**: Algorithmic AI ensures system never fails  
+✅ **Community Support**: Manual processing helps stuck users  
+✅ **Multiple Chainlink Services**: Functions + Data Feeds integration  
+✅ **Dynamic Ratios**: Rewards smart diversification with lower collateral requirements  
+✅ **Production Ready**: Comprehensive security and recovery mechanisms
+✅ **Cross-Chain Bridge**: Seamless AIUSD transfers between Ethereum and Avalanche via CCIP
 
-The improved callback system maintains all the benefits of atomic AI processing while providing comprehensive recovery mechanisms for when things go wrong. Users can confidently deposit collateral knowing their funds will never be permanently stuck! 🚀
+This represents the **future of AI-powered DeFi** - where intelligent risk assessment creates more capital-efficient and fair financial protocols while maintaining enterprise-grade reliability! 🚀
+
+## 🧠 Bedrock AI Engine Workflow
+
+For **enterprise-grade AI analysis** using Amazon Bedrock, use our integrated workflow:
+
+```bash
+# 1. Execute Bedrock deposit
+source .env && BEDROCK_SCENARIO=single forge script script/bedrock/ExecuteDepositWithBedrock.s.sol:ExecuteDepositWithBedrockScript --rpc-url $SEPOLIA_RPC_URL --broadcast --private-key $DEPLOYER_PRIVATE_KEY -vv
+
+# 2. Get integrated processing command (RECOMMENDED)
+source .env && forge script script/bedrock/GetDepositData.s.sol:GetDepositDataScript --sig "getBedrockProcessingCommand()" --rpc-url $SEPOLIA_RPC_URL --private-key $DEPLOYER_PRIVATE_KEY -vv
+
+# 3. Run the integrated Bedrock processor (copy-paste from step 2 output)
+cd test/standalone && node ProcessBedrockDeposit.js --requestId 123 --tokens "DAI" --amounts "100" --totalValue 100
+
+# 4. Execute the final processing command (copy-paste from step 3 output)
+source .env && forge script script/execute/ProcessManualRequest.s.sol --sig "processWithAIResponse(uint256,string)" 123 "RATIO:145 CONFIDENCE:80 SOURCE:BEDROCK_AI" --rpc-url $SEPOLIA_RPC_URL --broadcast --private-key $DEPLOYER_PRIVATE_KEY -vv
+```
+
+**📖 Complete documentation:** [docs/bedrock-ai-workflow-guide.md](docs/bedrock-ai-workflow-guide.md)
+
+## Quick Deploy & Test

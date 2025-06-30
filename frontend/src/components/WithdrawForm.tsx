@@ -5,9 +5,11 @@ import { useAccount, useWriteContract, useReadContract } from 'wagmi';
 import { parseEther } from 'viem';
 import {
   CONTRACTS,
-  AI_VAULT_ABI,
+  COLLATERAL_VAULT_ABI,
   AI_STABLECOIN_ABI,
+  ERC20_ABI,
   formatTokenAmount,
+  parseTokenAmount,
 } from '@/lib/web3';
 
 interface WithdrawFormProps {
@@ -28,12 +30,12 @@ export function WithdrawForm({
   const maxWithdrawable =
     aiusdMinted < aiusdBalance ? aiusdMinted : aiusdBalance;
 
-  // Check current allowance
+  // Read AIUSD allowance
   const { data: allowance } = useReadContract({
-    address: CONTRACTS.AI_STABLECOIN,
-    abi: AI_STABLECOIN_ABI,
+    address: CONTRACTS.AIUSD,
+    abi: ERC20_ABI,
     functionName: 'allowance',
-    args: address ? [address, CONTRACTS.AI_VAULT] : undefined,
+    args: address ? [address, CONTRACTS.COLLATERAL_VAULT] : undefined,
   }) as { data: bigint | undefined };
 
   const needsApproval = () => {
@@ -49,10 +51,10 @@ export function WithdrawForm({
       const amount = parseEther(withdrawAmount);
 
       await writeContract({
-        address: CONTRACTS.AI_STABLECOIN,
-        abi: AI_STABLECOIN_ABI,
+        address: CONTRACTS.AIUSD,
+        abi: ERC20_ABI,
         functionName: 'approve',
-        args: [CONTRACTS.AI_VAULT, amount],
+        args: [CONTRACTS.COLLATERAL_VAULT, amount],
       });
     } catch (error) {
       console.error('Approval failed:', error);
@@ -71,8 +73,8 @@ export function WithdrawForm({
       }
 
       await writeContract({
-        address: CONTRACTS.AI_VAULT,
-        abi: AI_VAULT_ABI,
+        address: CONTRACTS.COLLATERAL_VAULT,
+        abi: COLLATERAL_VAULT_ABI,
         functionName: 'withdrawCollateral',
         args: [amount],
       });

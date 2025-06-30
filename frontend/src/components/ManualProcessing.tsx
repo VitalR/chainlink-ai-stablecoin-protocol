@@ -19,7 +19,7 @@ export function ManualProcessing({
 
   // Check manual processing options
   const { data: manualOptions } = useReadContract({
-    address: CONTRACTS.AI_CONTROLLER,
+    address: CONTRACTS.RISK_ORACLE_CONTROLLER,
     abi: [
       {
         inputs: [
@@ -49,7 +49,7 @@ export function ManualProcessing({
     try {
       setProcessing(true);
       await writeContract({
-        address: CONTRACTS.AI_CONTROLLER,
+        address: CONTRACTS.RISK_ORACLE_CONTROLLER,
         abi: [
           {
             inputs: [

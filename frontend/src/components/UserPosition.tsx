@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useAccount, useReadContract } from 'wagmi';
 import {
   CONTRACTS,
-  AI_VAULT_ABI,
+  COLLATERAL_VAULT_ABI,
   AI_STABLECOIN_ABI,
   TOKENS,
   formatTokenAmount,
@@ -23,15 +23,22 @@ export function UserPosition() {
     error,
     refetch: refetchPosition,
   } = useReadContract({
-    address: CONTRACTS.AI_VAULT,
-    abi: AI_VAULT_ABI,
+    address: CONTRACTS.COLLATERAL_VAULT,
+    abi: COLLATERAL_VAULT_ABI,
     functionName: 'getPosition',
     args: address ? [address] : undefined,
-  });
+  }) as {
+    data:
+      | [`0x${string}`[], bigint[], bigint, bigint, bigint, bigint, boolean]
+      | undefined;
+    isLoading: boolean;
+    error: Error | null;
+    refetch: () => void;
+  };
 
   // Read AIUSD balance
   const { data: aiusdBalance, refetch: refetchAiusdBalance } = useReadContract({
-    address: CONTRACTS.AI_STABLECOIN,
+    address: CONTRACTS.AIUSD,
     abi: AI_STABLECOIN_ABI,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
@@ -49,7 +56,7 @@ export function UserPosition() {
     aiusdBalance,
     isLoading,
     error,
-    vaultContract: CONTRACTS.AI_VAULT,
+    vaultContract: CONTRACTS.COLLATERAL_VAULT,
   });
 
   if (isLoading) {
