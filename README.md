@@ -2,359 +2,304 @@
 
 ## 🏆 Built for Chromion Chainlink Hackathon 2025
 
-_Showcasing innovation in AI-powered DeFi across multiple technical categories_
+> **Showcasing innovation in AI-powered DeFi with comprehensive Chainlink ecosystem integration**
 
-### **Technical Innovation Areas:**
+## 🚀 **TL;DR - 60 Second Overview**
 
-- **🤖 AI Integration** - Amazon Bedrock + Chainlink Functions hybrid architecture
-- **🏦 DeFi Innovation** - Dynamic risk-based collateral ratios for capital efficiency
-- **🔗 Cross-Platform** - Multiple Chainlink services integration (Functions + Data Feeds)
+**What**: AI-powered stablecoin with dynamic collateral ratios (125-200%) based on portfolio risk analysis  
+**Innovation**: First DeFi protocol combining Amazon Bedrock AI + Chainlink Functions hybrid architecture  
+**Chainlink Usage**: Functions (AI), Data Feeds (pricing), CCIP (bridge), Automation (emergency withdrawals)  
+**Value**: 70-90% capital efficiency vs 300% traditional overcollateralization
 
-### **🚀 Technical Achievement Goals:**
+**Quick Start**: `git clone && forge install && forge test` - [Full Setup Guide](docs/deployment-guide.md)
 
-✅ **First DeFi protocol** with Amazon Bedrock integration  
-✅ **Hybrid AI architecture** combining enterprise AI + algorithmic intelligence  
-✅ **Decentralized AI execution** via Chainlink's oracle network  
-✅ **Dynamic financial parameters** that reward smart portfolio management
+### **🚀 Hackathon Innovation Highlights**
 
-### **🤖 Revolutionary AI Architecture:**
-
-✅ **Amazon Bedrock** (Claude 3 Sonnet or equivalent) for enterprise-grade risk analysis  
-✅ **Sophisticated algorithmic AI** fallback for reliability  
-✅ **Chainlink Functions** for decentralized AI execution  
-✅ **Chainlink Data Feeds** for real-time price data
+- **🤖 First DeFi protocol** with Amazon Bedrock + Chainlink Functions hybrid AI architecture
+- **🌉 Cross-chain bridge** enabling liquidity flow via Chainlink CCIP
+- **⚡ Emergency automation** using Chainlink Automation for stuck position recovery
+- **📊 Real-time pricing** via Chainlink Data Feeds integration
+- **🔄 Multi-chain deployment** on Ethereum Sepolia & Avalanche Fuji
 
 ---
 
-## Overview
+## 📋 Project Overview
 
-An innovative stablecoin protocol that uses **hybrid AI** (Amazon Bedrock + algorithmic intelligence) to dynamically assess portfolio risk and determine optimal collateral ratios in real-time.
+An innovative stablecoin protocol that leverages **hybrid AI** (Amazon Bedrock + algorithmic intelligence) to dynamically assess portfolio risk and determine optimal collateral ratios in real-time. The protocol maximizes capital efficiency by rewarding diversified portfolios with lower collateral requirements.
 
-## 🚀 System Architecture
+### **🎯 Core Value Proposition**
 
-### Core Components
+- **Dynamic Collateral Ratios**: 125-200% based on AI-analyzed portfolio risk
+- **Enterprise AI Integration**: Amazon Bedrock (Claude 3 Sonnet) via Chainlink Functions
+- **Cross-Chain Liquidity**: Bridge AIUSD between Ethereum and Avalanche
+- **Autonomous Operations**: Chainlink Automation for emergency risk management
+- **Capital Efficiency**: Lower collateral for diversified, low-risk portfolios
 
-1. **AIStablecoin (AIUSD)** - The stablecoin token with vault-based minting
-2. **CollateralVault** - Manages collateral deposits and positions
-3. **RiskOracleController** - Handles Chainlink Functions integration and manual processing
-4. **AIStablecoinCCIPBridge** - Cross-chain bridge for AIUSD transfers via Chainlink CCIP
+---
 
-### Hybrid AI System Features
+## 🏗️ System Architecture & Stack
 
-#### ✅ **Amazon Bedrock Integration**
+### **Core Smart Contracts**
 
-- **Primary AI**: Claude 3 Sonnet (or available Bedrock model) for sophisticated portfolio analysis
-- **Enterprise-grade**: AWS's managed AI service for reliability
-- **Dynamic risk assessment**: Real-time portfolio composition analysis
-- **Market sentiment integration**: Advanced sentiment analysis capabilities
+| Contract                      | Description                               | Chain         |
+| ----------------------------- | ----------------------------------------- | ------------- |
+| `AIStablecoin.sol`            | AIUSD token with vault-based minting      | Sepolia, Fuji |
+| `CollateralVault.sol`         | Manages collateral deposits and positions | Sepolia,      |
+| `RiskOracleController.sol`    | Chainlink Functions + AI processing       | Sepolia       |
+| `AIStablecoinCCIPBridge.sol`  | Cross-chain bridge via Chainlink CCIP     | Sepolia, Fuji |
+| `AutoEmergencyWithdrawal.sol` | Chainlink Automation for risk management  | Sepolia,      |
 
-#### ✅ **Algorithmic AI Fallback**
+### **Technology Stack**
 
-- **Sophisticated multi-factor analysis**: Portfolio diversification, token volatility, liquidity scoring
-- **Dynamic parameter adjustment**: Position size analysis, market conditions
-- **Intelligent decision making**: 125-200% collateral ratios based on risk
-- **High reliability**: Always available when Bedrock is unavailable
+**Blockchain**: Ethereum Sepolia, Avalanche Fuji  
+**Oracle Network**: Chainlink (Functions, Data Feeds, CCIP, Automation)  
+**AI Engine**: Amazon Bedrock (Claude 3 Sonnet)
+**Testing**: Foundry  
+**Deployment**: Forge Scripts, CI/CD  
+**Frontend**: Next.js (React.js + Web3.js)
 
-#### ✅ **Manual Processing System**
+---
 
-When AI systems are unavailable, the system provides multiple recovery strategies:
+## ⛓️ Chainlink Ecosystem Integration
 
-**Strategy 1: Process with Off-Chain AI** (Available after 30 minutes)
+> **✅ Requirement**: Project uses Chainlink to make state changes on blockchain
 
-- Use external AI services (ChatGPT, Claude, local models)
-- Parse AI response for ratio and confidence
-- Mint normally with AI-determined parameters
+### **1. 🤖 Chainlink Functions**
 
-**Strategy 2: Emergency Withdrawal** (Available after 2 hours)
+**Primary AI Processing Engine**
 
-- Return all collateral without minting
-- User-initiated or processor-triggered
-- Direct vault withdrawal after 4 hours
+- **File**: `src/RiskOracleController.sol` ([Lines 314-327](src/RiskOracleController.sol#L314-L327))
+- **Function**: Executes Amazon Bedrock AI analysis in decentralized manner
+- **State Change**: Mints AIUSD based on AI-determined collateral ratios
+- **Implementation**: DON secrets for AWS credentials, JavaScript execution
 
-**Strategy 3: Force Default Mint** (Available after 30 minutes)
+### **2. 📊 Chainlink Data Feeds**
 
-- Conservative 150% collateral ratio
-- 50% confidence score
-- Quick resolution without AI analysis
+**Real-Time Price Oracle Integration**
 
-#### ✅ **Time-Based Recovery Timeline**
+- **File**: `src/RiskOracleController.sol` ([Lines 728-776](src/RiskOracleController.sol#L728-L776))
+- **Function**: Fetches real-time asset prices for collateral valuation
+- **State Change**: Updates position values, triggers liquidations
+- **Feeds**: ETH/USD, BTC/USD, USDC/USD, LINK/USD
 
-```
-0-30 min:  Wait for normal Chainlink Functions callback
-30 min+:   Manual processing available (Strategies 1 & 3)
-2 hours+:  Emergency withdrawal available (Strategy 2)
-4 hours+:  Direct vault withdrawal available
-```
+### **3. 🌉 Chainlink CCIP**
 
-### 🌉 Cross-Chain Bridge Integration
+**Cross-Chain Bridge Infrastructure**
 
-#### ✅ **Chainlink CCIP Bridge**
-
+- **File**: `src/crosschain/AIStablecoinCCIPBridge.sol` ([Lines 100-175](src/crosschain/AIStablecoinCCIPBridge.sol#L100-L175))
+- **Function**: Burns AIUSD on source chain, mints on destination
+- **State Change**: Cross-chain token transfers with burn-and-mint mechanism
 - **Networks**: Ethereum Sepolia ↔ Avalanche Fuji
-- **Mechanism**: Secure burn-and-mint cross-chain transfers
-- **Fee Options**: Pay with native tokens (ETH/AVAX) or LINK
-- **Security**: Trusted remotes with vault authorization
-- **Architecture**: External bridge pattern (no existing contract modifications)
 
-#### ✅ **Bridge Features**
+### **4. ⚡ Chainlink Automation**
 
-- **Bidirectional**: Bridge AIUSD between Sepolia and Fuji
-- **Secure**: Burn-and-mint mechanism prevents double-spending
-- **Flexible Fees**: Choose between native token or LINK payment
-- **Production Ready**: Verified cross-chain transactions with CCIP Explorer tracking
+**Emergency Withdrawal Automation**
 
-#### ✅ **Cross-Chain Value Proposition**
+- **File**: `src/automation/AutoEmergencyWithdrawal.sol` ([Lines 122-232](src/automation/AutoEmergencyWithdrawal.sol#L122-L232))
+- **Function**: Monitors at-risk positions, triggers emergency withdrawals for stuck requests
+- **State Change**: Executes automatic emergency withdrawals when AI processing fails beyond timeout
+- **Upkeep**: Time-based automation for user protection and system reliability
 
-- **AI Analysis on Sepolia**: Sophisticated risk assessment using Chainlink Functions + Bedrock
-- **DeFi Access on Avalanche**: Lower fees and faster transactions for DeFi activities
-- **Liquidity Bridge**: Move AIUSD to where it's needed most
-- **Hackathon Alignment**: Avalanche integration as requested by Chromion hackathon
+---
 
-## 🛠 Usage
+## 🧠 Amazon Bedrock AI Integration
 
-### For Users
+### **Hybrid AI Architecture**
 
-#### 1. Deposit Collateral and Request AI Analysis
+**Primary**: Amazon Bedrock (Claude 3 Sonnet)
 
-```solidity
-// Approve tokens first
-IERC20(wethAddress).approve(vaultAddress, amount);
+- Enterprise-grade AI for sophisticated portfolio analysis
+- Market sentiment integration and dynamic risk assessment
+- Executed via Chainlink Functions for decentralization
 
-// Deposit collateral basket
-address[] memory tokens = [wethAddress, usdcAddress];
-uint256[] memory amounts = [10 ether, 5000 * 1e6];
+**Fallback**: Algorithmic AI
 
-vault.depositBasket(tokens, amounts);
+- Multi-factor analysis: diversification, volatility, liquidity
+- High reliability when Bedrock is unavailable
+- Sophisticated decision-making with 125-200% ratios
+
+**Recovery**: Manual Processing System
+
+- Multiple strategies for edge cases and system failures
+- Time-based escalation (30min → 2hrs → 4hrs)
+- Maintains protocol operation under all conditions
+
+> **📖 Detailed Implementation**: See [Amazon Bedrock AI Workflow Guide](docs/bedrock-ai-workflow-guide.md)
+
+---
+
+## ✨ Key Features & Innovations
+
+### **🎯 Dynamic Risk-Based Ratios**
+
+- **Diversified Portfolio**: 125-135% collateral ratio
+- **Moderate Risk**: 140-160% collateral ratio
+- **High Risk/Concentrated**: 170-200% collateral ratio
+- **Real-time adjustment** based on market conditions
+
+### **🌉 Cross-Chain Liquidity Flow**
+
+- **AI Analysis**: Sophisticated risk assessment on Ethereum Sepolia
+- **DeFi Execution**: Bridge to Avalanche for lower fees and faster transactions
+- **Bidirectional**: Move liquidity where it's needed most
+- **Production Ready**: Verified transactions with CCIP Explorer tracking
+
+> **📖 Bridge Guide**: See [CCIP Bridge Integration](docs/ccip-bridge-integration.md)
+
+### **⚡ Autonomous Operations**
+
+- **24/7 Monitoring**: Chainlink Automation for continuous position monitoring
+- **Automatic Emergency Withdrawals**: Protect users from permanently stuck positions
+- **Timeout Recovery**: Rapid response when AI processing fails beyond acceptable timeouts
+- **Gas Optimization**: Efficient automation with minimal gas costs for emergency scenarios
+
+> **📖 Automation Guide**: See [Chainlink Automation Integration](docs/chainlink-automation-integration.md)
+
+---
+
+## 📁 Files Using Chainlink
+
+### **Smart Contracts with Chainlink Integration**
+
+```
+src/
+├── RiskOracleController.sol          # Chainlink Functions (Primary)
+├── CollateralVault.sol               # Chainlink Data Feeds
+├── crosschain/
+│   └── AIStablecoinCCIPBridge.sol    # Chainlink CCIP
+└── automation/
+    └── AutoEmergencyWithdrawal.sol   # Chainlink Automation
 ```
 
-#### 2. Normal Flow (AI Works)
+_These contracts implement the core Chainlink integrations that make state changes on the blockchain._
 
-- **Amazon Bedrock** or **Algorithmic AI** analyzes your collateral within ~1-5 minutes
-- Optimal ratio determined (e.g., 135% = diversified, 175% = concentrated)
-- AIUSD automatically minted to your address
+### **Configuration Files**
 
-#### 3. If AI Gets Stuck (Manual Processing)
-
-```solidity
-// After 30 minutes, request manual processing
-controller.requestManualProcessing(requestId);
-
-// Or after 2 hours, emergency withdraw
-controller.emergencyWithdraw(requestId);
+```
+config/
+├── SepoliaConfig.sol                # Sepolia network configuration
+└── FujiConfig.sol                   # Avalanche Fuji network configuration
 ```
 
-### For Manual Processors
+---
 
-#### 1. Find Requests Needing Help
+## 🚀 Quick Start
 
-```solidity
-// Get list of stuck requests
-(uint256[] memory requestIds,
- address[] memory users,
- uint256[] memory timestamps,
- ManualStrategy[][] memory strategies) =
-    controller.getManualProcessingCandidates(0, 10);
-```
-
-#### 2. Process with External AI
-
-```solidity
-// Use ChatGPT, Claude, or any AI service to analyze the collateral
-string memory aiResponse = "RATIO:145 CONFIDENCE:85 SOURCE:EXTERNAL_AI";
-
-controller.processWithOffChainAI(
-    requestId,
-    aiResponse,
-    ManualStrategy.PROCESS_WITH_OFFCHAIN_AI
-);
-```
-
-### For System Administrators
-
-#### 1. Authorize Manual Processors
-
-```solidity
-controller.setAuthorizedManualProcessor(processorAddress, true);
-```
-
-#### 2. Circuit Breaker Controls
-
-```solidity
-// Emergency pause
-controller.pauseProcessing();
-
-// Resume operations
-controller.resumeProcessing();
-```
-
-## 🧪 Testing
-
-### Run All Tests
+### **1. Install Dependencies**
 
 ```bash
-# Build contracts
-forge build
+git clone <repository>
+cd ai-stablecoin
+forge install
+npm install
+```
 
-# Run Chainlink Functions integration tests
-./test/utils/run_improved_tests.sh
+### **2. Set Environment Variables**
 
-# Run E2E workflow tests
-./test/utils/run_tests.sh
+```bash
+cp .env.example .env
+# Add your RPC URLs, private keys, and API keys
+```
 
-# Run all tests
+### **3. Deploy to Testnet**
+
+**Prerequisites:**
+
+- Get testnet LINK tokens from [Chainlink Faucets](https://faucets.chain.link/sepolia)
+- Create Chainlink Functions subscription at [functions.chain.link](https://functions.chain.link)
+- Register Chainlink Automation Upkeep for emergency withdrawals at [automation.chain.link](https://automation.chain.link/sepolia)
+- Set up AWS Bedrock access with Claude 3 Sonnet enabled
+
+**📖 Detailed Deployment Guide**: See [Complete Deployment Documentation](docs/deployment-guide.md)
+
+### **4. Test the System**
+
+```bash
+# Run comprehensive test suite
 forge test
+
+# Test live AI integration
+./test/standalone/demo.sh
 ```
 
-### Test Coverage
+---
 
-- ✅ **Amazon Bedrock integration** via Chainlink Functions
-- ✅ **Algorithmic AI fallback** processing and failure handling
-- ✅ **Manual processing workflows** after timeout
-- ✅ **Emergency withdrawal** functionality
-- ✅ **Circuit breaker** functionality
-- ✅ **Authorization and security** controls
-- ✅ **Complete deposit and withdrawal** flows
+## 📚 Documentation
 
-## 🚀 Deployment
+### **Detailed Implementation Guides**
 
-### Prerequisites
+- **[🤖 Chainlink Integration Overview](docs/chainlink-integration.md)** - Complete Chainlink ecosystem usage
+- **[🧠 Amazon Bedrock AI Workflow](docs/bedrock-ai-workflow-guide.md)** - AI processing implementation
+- **[🌉 CCIP Bridge Integration](docs/ccip-bridge-integration.md)** - Cross-chain bridge setup
+- **[⚡ Chainlink Automation](docs/chainlink-automation-integration.md)** - Autonomous operations
+- **[📊 Deployment Status](docs/project-deployment-status.md)** - Live deployment information
 
-1. **AWS Setup**: Amazon Bedrock access with Claude 3 Sonnet enabled
-2. **Chainlink Setup**: Functions subscription with LINK tokens
-3. **Network Setup**: Deploy to Sepolia testnet or Ethereum mainnet
+### **User Guides & Workflows**
 
-### Deploy Script
+- **[Manual Processing Guide](docs/manual-processing-guide.md)** - Emergency procedures
+- **[Bridge Workflow Guide](docs/ccip-bridge-workflow-guide.md)** - Cross-chain operations
+- **[AI Transaction Proofs](docs/bedrock-ai-workflow-transaction-proofs.md)** - Live AI execution examples
 
-```bash
-source .env && forge script script/deploy/02_DeployRiskOracleController.s.sol:DeployRiskOracleControllerScript --rpc-url $SEPOLIA_RPC_URL --broadcast --private-key $DEPLOYER_PRIVATE_KEY --etherscan-api-key $ETHERSCAN_API_KEY --verify -vvvv
-```
+---
 
-### Post-Deployment Setup
+## 🌐 Live Deployments
 
-1. **Configure AWS credentials** in Chainlink Functions secrets
-2. **Add supported collateral tokens** with prices
-3. **Authorize initial manual processors**
-4. **Test with small deposits** first
+### **Ethereum Sepolia**
 
-## 🔧 Configuration
+- **AIStablecoin**: [View on Etherscan](https://sepolia.etherscan.io/address/0xf0072115e6b861682e73a858fBEE36D512960c6f)
+- **CollateralVault**: [View on Etherscan](https://sepolia.etherscan.io/address/0x1EeFd496e33ACE44e8918b08bAB9E392b46e1563)
+- **RiskOracleController**: [View on Etherscan](https://sepolia.etherscan.io/address/0xB4F6B67C9Cd82bbBB5F97e2f40ebf972600980e4)
+- **AutoEmergencyWithdrawal**: [View on Etherscan](https://sepolia.etherscan.io/address/0xE3a872020c0dB6e7c716c39e76A5C98f24cebF92)
+- **CCIP Bridge**: [View on Etherscan](https://sepolia.etherscan.io/address/0xB76cD1A5c6d63042D316AabB2f40a5887dD4B1D4)
 
-### AI Response Timeouts
+### **Avalanche Fuji**
 
-- **Normal Processing**: 1-5 minutes (Chainlink Functions)
-- **Manual Processing**: 30 minutes
-- **Emergency Withdrawal**: 2 hours
-- **Direct Vault Withdrawal**: 4 hours
+- **AIStablecoin**: [View on Snowtrace](https://testnet.snowtrace.io/address/0x26D0f5BD1DAb1c02D1Fc198Fe6ECa2b22Ab276d7)
+- **CCIP Bridge**: [View on Snowtrace](https://testnet.snowtrace.io/address/0xd6cE29223350252e3dD632f0bb1438e827da12b6)
 
-### Safety Parameters
+### **Cross-Chain Bridge Transactions**
 
-- **Default Conservative Ratio**: 150%
-- **AI Ratio Range**: 125-200%
-- **Circuit Breaker Threshold**: 5 failures
-- **Auto-Reset Time**: 1 hour
+- **Sepolia → Fuji**: [CCIP Explorer](https://ccip.chain.link/msg/0xb8cd99dd68d1a21f180cae3f0564aec71eaf4aa3eccff29a2e9ebf8245896dcb)
+- **Fuji → Sepolia**: [CCIP Explorer](https://ccip.chain.link/msg/0xd3a8c09baaa8fb2e06f0c34d1c6d01226dab3546a4d3ffb0965e90505c2a7884)
 
-## 🛡 Security Features
+> **📖 Complete Deployment Status**: See [Project Deployment Status](docs/project-deployment-status.md) for detailed addresses and verification links.
 
-### Multi-Layer Protection
+---
 
-1. **Hybrid AI Architecture**: Primary + fallback AI systems
-2. **Time-Based Permissions**: Graduated access to recovery functions
-3. **Authorization Controls**: Only approved processors can intervene
-4. **Circuit Breaker**: Automatic system pause on repeated failures
-5. **Safe External Calls**: Gas-limited calls prevent DoS attacks
+## 🧪 Testing & Coverage
 
-### Emergency Procedures
+### **Test Results**
 
-1. **Immediate**: Circuit breaker pause (owner only)
-2. **30 minutes**: Manual processing available
-3. **2 hours**: Emergency withdrawal available
-4. **4 hours**: Direct vault withdrawal available
+- **Total Tests**: 142 tests across 10 test suites
+- **Pass Rate**: 100% (142/142 tests passing)
+- **Coverage**: Comprehensive testing of all Chainlink integrations
 
-## 📊 AI Performance
+### **Key Test Categories**
 
-### Response Sources
+- ✅ **Chainlink Functions**: AI processing, callbacks, error handling
+- ✅ **CCIP Bridge**: Cross-chain transfers, security, fee handling
+- ✅ **Data Feeds**: Price validation, staleness checks, fallbacks
+- ✅ **Automation**: Upkeep conditions, emergency triggers
+- ✅ **Integration**: End-to-end workflows, multi-contract interactions
 
-- **AMAZON_BEDROCK_AI**: Primary enterprise AI via Claude 3 Sonnet
-- **ALGORITHMIC_AI**: Sophisticated fallback analysis
-- **EXTERNAL_AI**: Manual processing with external services
-- **FALLBACK**: Conservative default (150% ratio)
+---
 
-### Example AI Analysis
+## 🏆 Hackathon Alignment
 
-**Traditional Stablecoin**: "Everyone needs 150% collateral"
+### **Chromion Hackathon Requirements ✅**
 
-**Our AI Stablecoin**:
+- ✅ **Chainlink State Changes**: Multiple Chainlink services modify blockchain state
+- ✅ **Public Repository**: Open-source codebase with comprehensive documentation
+- ✅ **Chainlink File References**: Clear documentation of all Chainlink integrations
+- ✅ **Architecture Description**: Detailed technical stack and system design
+- ✅ **Live Demo**: Deployed contracts with verified transactions
 
-- **Portfolio A** (100% ETH): AI determines high risk → 175% collateral required
-- **Portfolio B** (diversified): AI determines low risk → 135% collateral required
+### **Prize Categories**
 
-## 🤝 Community Involvement
-
-### Become a Manual Processor
-
-1. **Get Authorized**: Contact system administrators
-2. **Monitor Requests**: Use `getManualProcessingCandidates()`
-3. **Help Users**: Process stuck requests with external AI
-4. **Future Rewards**: Processor incentive system planned
-
-### AI Integration Examples
-
-```javascript
-// Example 1: Using OpenAI API for manual processing
-const openaiResponse = await openai.chat.completions.create({
-  model: 'gpt-4',
-  messages: [
-    {
-      role: 'user',
-      content: `Analyze this DeFi collateral basket for optimal collateral ratio.
-             Consider: diversification, volatility, liquidity, position size.
-             Respond: RATIO:XXX CONFIDENCE:YY (125-200%, 30-95%).
-             Portfolio: ${basketData} Value: $${totalValue}`,
-    },
-  ],
-});
-
-// Example 2: Using Anthropic Claude API for manual processing
-const claudeResponse = await anthropic.messages.create({
-  model: 'claude-3-sonnet-20240229',
-  max_tokens: 1000,
-  messages: [
-    {
-      role: 'user',
-      content: `Analyze this DeFi collateral basket for optimal collateral ratio.
-             Consider: diversification, volatility, liquidity, position size.
-             Respond: RATIO:XXX CONFIDENCE:YY (125-200%, 30-95%).
-             Portfolio: ${basketData} Value: $${totalValue}`,
-    },
-  ],
-});
-
-// Parse and submit (works with any AI service)
-await controller.processWithOffChainAI(requestId, aiResponse.content, 0);
-```
-
-**Note**: These examples are for **manual processing** by community processors. Our primary AI system uses **Amazon Bedrock (Claude 3 Sonnet)** via Chainlink Functions.
-
-## 📚 Additional Resources
-
-- **Amazon Bedrock**: [AWS Bedrock Documentation](https://docs.aws.amazon.com/bedrock/)
-- **Chainlink Functions**: [Chainlink Functions Documentation](https://docs.chain.link/chainlink-functions)
-- **Foundry Framework**: [Foundry Book](https://book.getfoundry.sh)
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-**Q: My AI request is stuck, what do I do?**  
-A: Wait 30 minutes, then call `requestManualProcessing()`. Community processors will help.
-
-**Q: Can I lose my collateral?**  
-A: No! Multiple recovery mechanisms ensure funds are never permanently stuck.
-
-**Q: How does the hybrid AI work?**  
-A: Primary: Amazon Bedrock (Claude 3). Fallback: Sophisticated algorithmic AI. Always reliable.
-
-**Q: What if Chainlink Functions fail?**  
-A: Manual processing system kicks in with external AI services and emergency withdrawals.
+- **DeFi Innovation**: Revolutionary AI-powered collateral efficiency
+- **Cross-Chain**: Chainlink CCIP bridge enabling multi-chain liquidity
+- **AI Integration**: First Amazon Bedrock + Chainlink Functions hybrid
+- **Technical Excellence**: Comprehensive Chainlink ecosystem utilization
 
 ---
 
@@ -363,31 +308,31 @@ A: Manual processing system kicks in with external AI services and emergency wit
 ✅ **Enterprise AI**: Amazon Bedrock (Claude 3 Sonnet) for sophisticated analysis  
 ✅ **Reliable Fallback**: Algorithmic AI ensures system never fails  
 ✅ **Community Support**: Manual processing helps stuck users  
-✅ **Multiple Chainlink Services**: Functions + Data Feeds integration  
+✅ **Multiple Chainlink Services**: Functions + Data Feeds + CCIP + Automation integration  
 ✅ **Dynamic Ratios**: Rewards smart diversification with lower collateral requirements  
-✅ **Production Ready**: Comprehensive security and recovery mechanisms
+✅ **Production Ready**: Comprehensive security and recovery mechanisms  
 ✅ **Cross-Chain Bridge**: Seamless AIUSD transfers between Ethereum and Avalanche via CCIP
 
 This represents the **future of AI-powered DeFi** - where intelligent risk assessment creates more capital-efficient and fair financial protocols while maintaining enterprise-grade reliability! 🚀
 
-## 🧠 Bedrock AI Engine Workflow
+---
 
-For **enterprise-grade AI analysis** using Amazon Bedrock, use our integrated workflow:
+## ⚠️ **Important Disclaimers**
 
-```bash
-# 1. Execute Bedrock deposit
-source .env && BEDROCK_SCENARIO=single forge script script/bedrock/ExecuteDepositWithBedrock.s.sol:ExecuteDepositWithBedrockScript --rpc-url $SEPOLIA_RPC_URL --broadcast --private-key $DEPLOYER_PRIVATE_KEY -vv
+**🔬 Experimental Technology**: This protocol uses AI for financial decisions. AI models may have biases or make errors. Never invest more than you can afford to lose.
 
-# 2. Get integrated processing command (RECOMMENDED)
-source .env && forge script script/bedrock/GetDepositData.s.sol:GetDepositDataScript --sig "getBedrockProcessingCommand()" --rpc-url $SEPOLIA_RPC_URL --private-key $DEPLOYER_PRIVATE_KEY -vv
+**🏦 Not Financial Advice**: This is experimental DeFi technology for educational and testing purposes. Consult qualified financial advisors before making investment decisions.
 
-# 3. Run the integrated Bedrock processor (copy-paste from step 2 output)
-cd test/standalone && node ProcessBedrockDeposit.js --requestId 123 --tokens "DAI" --amounts "100" --totalValue 100
+**🔒 Security Notice**: While extensively tested, smart contracts may contain bugs. Use at your own risk on testnets only until full security audits are completed.
 
-# 4. Execute the final processing command (copy-paste from step 3 output)
-source .env && forge script script/execute/ProcessManualRequest.s.sol --sig "processWithAIResponse(uint256,string)" 123 "RATIO:145 CONFIDENCE:80 SOURCE:BEDROCK_AI" --rpc-url $SEPOLIA_RPC_URL --broadcast --private-key $DEPLOYER_PRIVATE_KEY -vv
-```
+---
 
-**📖 Complete documentation:** [docs/bedrock-ai-workflow-guide.md](docs/bedrock-ai-workflow-guide.md)
+##   Links
 
-## Quick Deploy & Test
+- **📂 Repository**: [GitHub Source Code](https://github.com/VitalR/chainlink-ai-stablecoin-protocol)
+- **📖 Documentation**: [Complete Technical Docs](docs/)
+- **🏆 Hackathon**: [Chromion Chainlink Hackathon 2025](https://chromion-chainlink-hackathon.devfolio.co/)
+
+---
+
+**Built with ❤️ for the Chromion Chainlink Hackathon 2025** | **License**: MIT | **Status**: Testnet Ready
